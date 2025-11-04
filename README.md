@@ -2,15 +2,14 @@
 
 > **Professional time tracking system built with ASP.NET Core and Domain-Driven Design**
 
-[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-8.0-512BD4)](https://dotnet.microsoft.com/apps/aspnet)
-[![Entity Framework](https://img.shields.io/badge/Entity%20Framework-8.0-512BD4)](https://docs.microsoft.com/ef/)
+[![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-9.0-512BD4)](https://dotnet.microsoft.com/apps/aspnet)
+[![Entity Framework](https://img.shields.io/badge/Entity%20Framework-9.0-512BD4)](https://docs.microsoft.com/ef/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 TiroTime is a modern, self-hosted time tracking application designed for freelancers, consultants, and small teams. Built with clean architecture principles and domain-driven design, it provides a robust foundation for tracking billable hours across multiple clients and projects.
-
-![TiroTime Dashboard](docs/images/dashboard-preview.png)
+The main motivation is not to implement yet another time tracking system, but to demonstrate what is possible in 2025 with AI tools like Claude Code and GitHub specs.
 
 ## ✨ Features
 
@@ -106,7 +105,7 @@ ASP.NET Core Razor Pages application:
 
 ## 📐 Specifications
 
-Project requirements and features are documented using **[GitHub Specs](https://github.com/features/issues)**. Each feature is specified in detail with:
+Project requirements and features are documented using **[GitHub Specs](https://github.com/github/spec-kit)**. Each feature is specified in detail with:
 
 - **Clear Requirements**: What needs to be built
 - **Acceptance Criteria**: Definition of done
@@ -142,7 +141,7 @@ Brief description of the feature
 ## 🚀 Getting Started
 
 ### Prerequisites
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
 - [SQL Server](https://www.microsoft.com/sql-server) (or Docker)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (optional)
 
@@ -216,8 +215,8 @@ dotnet user-secrets set "SeedUsers:StandardUser:Password" "SecurePassword123!" -
 ## 🛠️ Technology Stack
 
 ### Backend
-- **Framework**: ASP.NET Core 8.0
-- **ORM**: Entity Framework Core 8.0
+- **Framework**: ASP.NET Core 9.0
+- **ORM**: Entity Framework Core 9.0
 - **Database**: SQL Server
 - **Authentication**: ASP.NET Core Identity + JWT
 - **Patterns**: DDD, Clean Architecture, Repository, Unit of Work

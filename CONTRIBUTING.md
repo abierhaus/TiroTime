@@ -23,7 +23,7 @@ Feature suggestions are welcome! Please:
 
 ### Pull Requests
 
-1. **Fork the repository** and create your branch from `master`
+1. **Fork the repository** and create your branch from `main`
 2. **Follow the coding standards**:
    - Use meaningful variable names
    - Add XML documentation for public methods
