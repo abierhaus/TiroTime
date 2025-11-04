@@ -277,7 +277,7 @@ public class ReportService : IReportService
         sheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
         sheet.PageSetup.FitToPages(1, 0); // Fit to 1 page wide
 
-        // Header (without "Betrag" and "Stundensatz" columns)
+        // Header (without "Betrag", "Stundensatz" and "Währung" columns)
         sheet.Cell(1, 1).Value = "Datum";
         sheet.Cell(1, 2).Value = "Projekt";
         sheet.Cell(1, 3).Value = "Kunde";
@@ -285,9 +285,8 @@ public class ReportService : IReportService
         sheet.Cell(1, 5).Value = "Von";
         sheet.Cell(1, 6).Value = "Bis";
         sheet.Cell(1, 7).Value = "Dauer (Std)";
-        sheet.Cell(1, 8).Value = "Währung";
 
-        var headerRange = sheet.Range(1, 1, 1, 8);
+        var headerRange = sheet.Range(1, 1, 1, 7);
         headerRange.Style.Font.Bold = true;
         headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
 
@@ -303,7 +302,6 @@ public class ReportService : IReportService
             sheet.Cell(row, 6).Value = entry.EndTime.ToString(@"hh\:mm");
             sheet.Cell(row, 7).Value = entry.Duration.TotalHours;
             sheet.Cell(row, 7).Style.NumberFormat.Format = "0.00";
-            sheet.Cell(row, 8).Value = entry.Currency;
             row++;
         }
 
@@ -347,7 +345,7 @@ public class ReportService : IReportService
 
                 page.Content().Table(table =>
                 {
-                    // Define columns (without "Betrag" and "Stundensatz" columns)
+                    // Define columns (without "Betrag", "Stundensatz" and "Währung" columns)
                     table.ColumnsDefinition(columns =>
                     {
                         columns.RelativeColumn(1.5f); // Datum
@@ -357,7 +355,6 @@ public class ReportService : IReportService
                         columns.RelativeColumn(1);    // Von
                         columns.RelativeColumn(1);    // Bis
                         columns.RelativeColumn(1.2f); // Dauer
-                        columns.RelativeColumn(1);    // Währung
                     });
 
                     // Header
@@ -370,7 +367,6 @@ public class ReportService : IReportService
                         header.Cell().Element(CellStyle).Text("Von").Bold();
                         header.Cell().Element(CellStyle).Text("Bis").Bold();
                         header.Cell().Element(CellStyle).Text("Dauer").Bold();
-                        header.Cell().Element(CellStyle).Text("Währung").Bold();
 
                         static IContainer CellStyle(IContainer container)
                         {
@@ -392,7 +388,6 @@ public class ReportService : IReportService
                         table.Cell().Element(CellStyle).Text(entry.StartTime.ToString(@"hh\:mm"));
                         table.Cell().Element(CellStyle).Text(entry.EndTime.ToString(@"hh\:mm"));
                         table.Cell().Element(CellStyle).Text(entry.Duration.ToString(@"hh\:mm"));
-                        table.Cell().Element(CellStyle).Text(entry.Currency);
 
                         static IContainer CellStyle(IContainer container)
                         {
