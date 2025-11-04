@@ -2,8 +2,6 @@
 # Diese Datei überschreibt docker-compose.yml Einstellungen
 # Sie wird automatisch verwendet, wenn Sie 'docker-compose up' ausführen
 
-version: '3.8'
-
 services:
   tirotime-web:
     environment:
