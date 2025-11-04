@@ -63,3 +63,9 @@ riderModule.iml
 # OS
 .DS_Store
 Thumbs.db
+
+# Test Results
+**/TestResults/
+*.trx
+*.coverage
+*.coveragexml

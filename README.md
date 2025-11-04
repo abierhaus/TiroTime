@@ -2,6 +2,7 @@
 
 > **Professional time tracking system built with ASP.NET Core and Domain-Driven Design**
 
+[![CI](https://github.com/abierhaus/TiroTime/actions/workflows/ci.yml/badge.svg)](https://github.com/abierhaus/TiroTime/actions/workflows/ci.yml)
 [![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-9.0-512BD4)](https://dotnet.microsoft.com/apps/aspnet)
 [![Entity Framework](https://img.shields.io/badge/Entity%20Framework-9.0-512BD4)](https://docs.microsoft.com/ef/)
@@ -230,7 +231,10 @@ dotnet user-secrets set "SeedUsers:StandardUser:Password" "SecurePassword123!" -
 ### DevOps
 - **Containerization**: Docker
 - **Orchestration**: Docker Compose
-- **CI/CD Ready**: GitHub Actions compatible
+- **CI/CD**: GitHub Actions
+  - Automated builds on every push
+  - Unit test execution
+  - Docker image validation
 
 ## 📚 Documentation
 
