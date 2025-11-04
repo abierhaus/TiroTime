@@ -121,6 +121,23 @@ docker-compose build --no-cache
 docker-compose up -d
 ```
 
+## Dockerfile Details
+
+Das Dockerfile verwendet einen **Multi-Stage Build** für optimale Image-Größe:
+
+### Build Stage
+1. Kopiert Solution und alle .csproj Dateien (inkl. Test-Projekte für restore)
+2. Führt `dotnet restore` nur für das Web-Projekt aus
+3. Kopiert nur die `src/` Quelldateien (Tests bleiben außen vor)
+4. Baut und publisht das Web-Projekt im Release-Modus
+
+### Runtime Stage
+1. Verwendet schlankes aspnet:9.0 Runtime-Image
+2. Kopiert nur die kompilierten Binaries
+3. Enthält keine Build-Tools oder Test-Projekte
+
+**Ergebnis:** Schlankes Produktions-Image ohne unnötige Dependencies.
+
 ## Produktion
 
 Für die Produktion:

@@ -239,9 +239,21 @@ dotnet user-secrets set "SeedUsers:StandardUser:Password" "SecurePassword123!" -
 ## 📚 Documentation
 
 - **[Docker Deployment](README.Docker.md)** - Detailed Docker setup guide
+- **[GitHub Actions](.github/workflows/README.md)** - CI/CD pipeline documentation
 - **[Architecture Decision Records](docs/adr/)** - Key architectural decisions
 - **[API Documentation](docs/api/)** - API endpoints (coming soon)
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute
+
+## 🔄 Continuous Integration
+
+TiroTime uses **GitHub Actions** for automated CI/CD:
+
+- ✅ **Build Validation** - Builds all projects on every push
+- ✅ **Automated Testing** - Runs all unit tests automatically
+- ✅ **Docker Verification** - Validates Docker image builds
+- ✅ **Pull Request Checks** - Ensures PR quality before merge
+
+View the workflow status in the [Actions tab](https://github.com/abierhaus/TiroTime/actions).
 
 ## 🤝 Contributing
 
