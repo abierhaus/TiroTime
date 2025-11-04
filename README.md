@@ -263,8 +263,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📬 Contact
 
-- **Project Link**: [https://github.com/yourusername/TiroTime](https://github.com/yourusername/TiroTime)
-- **Issues**: [https://github.com/yourusername/TiroTime/issues](https://github.com/yourusername/TiroTime/issues)
+- **Project Link**: [https://github.com/abierhaus//TiroTime](https://github.com/abierhaus/TiroTime)
+- **Issues**: [https://github.com/abierhaus/TiroTime/issues](https://github.com/abierhaus/TiroTime/issues)
 
 ---
 
