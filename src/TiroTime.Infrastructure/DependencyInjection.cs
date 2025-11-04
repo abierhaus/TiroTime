@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TiroTime.Application.Interfaces;
 using TiroTime.Infrastructure.Persistence;
+using TiroTime.Infrastructure.Services;
 
 namespace TiroTime.Infrastructure;
 
@@ -21,6 +22,13 @@ public static class DependencyInjection
         // Repositories
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // Services
+        services.AddScoped<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<IClientService, ClientService>();
+        services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<ITimeEntryService, TimeEntryService>();
 
         return services;
     }

@@ -1,0 +1,17 @@
+# Docker Compose Override für lokale Entwicklung
+# Diese Datei überschreibt docker-compose.yml Einstellungen
+# Sie wird automatisch verwendet, wenn Sie 'docker-compose up' ausführen
+
+version: '3.8'
+
+services:
+  tirotime-web:
+    environment:
+      # Nur HTTP für lokale Entwicklung
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      # Nur HTTP Port
+      - "5000:80"
+    volumes:
+      # Entfernen Sie das HTTPS-Volume für lokale Entwicklung
+      - /dev/null:/dev/null

@@ -1,12 +1,21 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using TiroTime.Application.Interfaces;
 using TiroTime.Domain.Identity;
 using TiroTime.Infrastructure;
 using TiroTime.Infrastructure.Persistence;
+using TiroTime.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add HttpContextAccessor
+builder.Services.AddHttpContextAccessor();
+
 // Add Infrastructure services
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Add Application services
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 // Add Identity
 builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
@@ -66,5 +75,29 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapRazorPages();
+
+// Apply database migrations and seed data
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        // Apply pending migrations
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        await context.Database.MigrateAsync();
+        logger.LogInformation("Datenbank-Migrationen wurden erfolgreich angewendet");
+
+        // Seed initial data
+        await DatabaseSeeder.SeedAsync(services);
+        logger.LogInformation("Datenbank wurde erfolgreich initialisiert");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Fehler beim Initialisieren der Datenbank");
+        throw;
+    }
+}
 
 app.Run();

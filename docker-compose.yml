@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  tirotime-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tirotime-app
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "5000:80"
+      - "5001:443"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80;https://+:443
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=TiroTime2024!
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx
+      # Database Connection - verwendet host.docker.internal um auf Host-SQL-Server zuzugreifen
+      - ConnectionStrings__DefaultConnection=Server=host.docker.internal;Database=TiroTime;User Id=usrTiroTime;Password=P@ssw0rd;TrustServerCertificate=True;MultipleActiveResultSets=true
+      # Standard-Benutzer Seed-Daten (optional)
+      - SeedUsers__StandardUser__Email=benutzer@tirotime.com
+      - SeedUsers__StandardUser__FirstName=Max
+      - SeedUsers__StandardUser__LastName=Mustermann
+      - SeedUsers__StandardUser__Password=User123!@#$$
+      # JWT Settings
+      - JwtSettings__SecretKey=TiroTime_SuperSecretKey_MinLength32Characters_ChangeInProduction!
+      - JwtSettings__Issuer=TiroTime
+      - JwtSettings__Audience=TiroTimeUsers
+      - JwtSettings__ExpirationInMinutes=480
+      - JwtSettings__RefreshTokenExpirationInDays=7
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Optional: HTTPS-Zertifikat für Development (muss separat erstellt werden)
+      - ~/.aspnet/https:/https:ro
+    networks:
+      - tirotime-network
+
+networks:
+  tirotime-network:
+    driver: bridge

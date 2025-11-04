@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\TiroTime.Application\TiroTime.Application.csproj" />
@@ -16,6 +16,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>c7657627-84ea-42bb-b393-1b9554015e4c</UserSecretsId>
   </PropertyGroup>
 
 </Project>

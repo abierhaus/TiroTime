@@ -1,0 +1,410 @@
+@page
+@model TiroTime.Web.Pages.TimeTracking.IndexModel
+@{
+    ViewData["Title"] = "Zeiterfassung";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" class="bi bi-stopwatch text-primary me-2" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                <path d="M8.5 5.6a.5.5 0 1 0-1 0v2.9h-3a.5.5 0 0 0 0 1H8a.5.5 0 0 0 .5-.5z"/>
+                <path d="M6.5 1A.5.5 0 0 1 7 .5h2a.5.5 0 0 1 0 1v.57c1.36.196 2.594.78 3.584 1.64l.012-.013.354-.354-.354-.353a.5.5 0 0 1 .707-.708l1.414 1.415a.5.5 0 1 1-.707.707l-.353-.354-.354.354-.013.012A7 7 0 1 1 7 2.071V1.5a.5.5 0 0 1-.5-.5M8 3a6 6 0 1 0 .001 12A6 6 0 0 0 8 3"/>
+            </svg>
+            Zeiterfassung
+        </h1>
+    </div>
+</div>
+
+@if (Model.ActiveTimer != null)
+{
+    <div class="card border-primary mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h5 class="card-title mb-1">
+                        @if (!string.IsNullOrEmpty(Model.ActiveTimer.ProjectColorCode))
+                        {
+                            <span class="badge me-2" style="background-color: @Model.ActiveTimer.ProjectColorCode">&nbsp;&nbsp;&nbsp;</span>
+                        }
+                        @Model.ActiveTimer.ProjectName
+                    </h5>
+                    <p class="text-muted mb-2">@Model.ActiveTimer.ClientName</p>
+                    @if (!string.IsNullOrEmpty(Model.ActiveTimer.Description))
+                    {
+                        <p class="mb-0"><small>@Model.ActiveTimer.Description</small></p>
+                    }
+                </div>
+                <div class="col-md-3 text-center">
+                    <h2 class="mb-0 text-primary" id="timer-display">00:00:00</h2>
+                    <small class="text-muted">Gestartet um @Model.ActiveTimer.StartTime.ToLocalTime().ToString("HH:mm")</small>
+                </div>
+                <div class="col-md-3 text-end">
+                    <form method="post" asp-page-handler="StopTimer">
+                        <input type="hidden" name="timeEntryId" value="@Model.ActiveTimer.Id" />
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-stop-fill" viewBox="0 0 16 16">
+                                <path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5"/>
+                            </svg>
+                            Stoppen
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="post" asp-page-handler="StartTimer" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label for="projectSelect" class="form-label">Projekt *</label>
+                    <select class="form-select" id="projectSelect" name="projectId" required>
+                        <option value="">-- Projekt auswählen --</option>
+                        @foreach (var project in Model.Projects)
+                        {
+                            <option value="@project.Id">
+                                @if (!string.IsNullOrEmpty(project.ColorCode))
+                                {
+                                    <text>● </text>
+                                }
+                                @project.Name (@project.ClientName)
+                            </option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label for="description" class="form-label">Beschreibung (optional)</label>
+                    <input type="text" class="form-control" id="description" name="description" placeholder="Was machen Sie gerade?" />
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-success w-100">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play-fill" viewBox="0 0 16 16">
+                            <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393"/>
+                        </svg>
+                        Starten
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+@{
+    var prevMonth = Model.CurrentMonth == 1 ? 12 : Model.CurrentMonth - 1;
+    var prevYear = Model.CurrentMonth == 1 ? Model.CurrentYear - 1 : Model.CurrentYear;
+    var nextMonth = Model.CurrentMonth == 12 ? 1 : Model.CurrentMonth + 1;
+    var nextYear = Model.CurrentMonth == 12 ? Model.CurrentYear + 1 : Model.CurrentYear;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-3">
+        <h4 class="mb-0">Zeiteinträge</h4>
+        <div class="btn-group">
+            <a asp-page="./Index" asp-route-year="@prevYear" asp-route-month="@prevMonth" class="btn btn-outline-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-left" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0"/>
+                </svg>
+            </a>
+            <button type="button" class="btn btn-outline-secondary" disabled>@Model.MonthName</button>
+            <a asp-page="./Index" asp-route-year="@nextYear" asp-route-month="@nextMonth" class="btn btn-outline-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-right" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+    <a asp-page="./Create" class="btn btn-outline-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
+        </svg>
+        Manueller Eintrag
+    </a>
+</div>
+
+@if (Model.MonthEntries.Any())
+{
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Datum</th>
+                            <th>Projekt</th>
+                            <th>Beschreibung</th>
+                            <th>Von</th>
+                            <th>Bis</th>
+                            <th class="text-end">Dauer</th>
+                            <th class="text-end">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in Model.MonthEntries)
+                        {
+                            var localStart = entry.StartTime.ToLocalTime();
+                            var localEnd = entry.EndTime?.ToLocalTime();
+
+                            <tr data-entry-id="@entry.Id">
+                                <td>
+                                    <strong>@localStart.ToString("dd.MM.yyyy")</strong><br/>
+                                    <small class="text-muted">@localStart.ToString("dddd", new System.Globalization.CultureInfo("de-DE"))</small>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(entry.ProjectColorCode))
+                                    {
+                                        <span class="badge me-2" style="background-color: @entry.ProjectColorCode">&nbsp;&nbsp;&nbsp;</span>
+                                    }
+                                    <strong>@entry.ProjectName</strong>
+                                    <br />
+                                    <small class="text-muted">@entry.ClientName</small>
+                                </td>
+                                <td>@(entry.Description ?? "-")</td>
+                                <td class="time-cell">
+                                    <span class="time-display">@localStart.ToString("HH:mm")</span>
+                                    <input type="time" class="form-control form-control-sm time-edit d-none"
+                                           value="@localStart.ToString("HH:mm")"
+                                           data-field="start" />
+                                </td>
+                                <td class="time-cell">
+                                    @if (localEnd.HasValue)
+                                    {
+                                        <span class="time-display">@localEnd.Value.ToString("HH:mm")</span>
+                                        <input type="time" class="form-control form-control-sm time-edit d-none"
+                                               value="@localEnd.Value.ToString("HH:mm")"
+                                               data-field="end" />
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Läuft</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <strong class="duration-display">@string.Format("{0:hh\\:mm}", entry.Duration)</strong>
+                                </td>
+                                <td class="text-end">
+                                    @if (!entry.IsRunning)
+                                    {
+                                        <div class="btn-group btn-group-sm action-buttons">
+                                            <button type="button" class="btn btn-outline-primary btn-edit-time" title="Zeiten bearbeiten">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-clock" viewBox="0 0 16 16">
+                                                    <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71z"/>
+                                                    <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0"/>
+                                                </svg>
+                                            </button>
+                                            <a asp-page="./Edit" asp-route-id="@entry.Id" class="btn btn-outline-secondary" title="Details bearbeiten">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
+                                                    <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325"/>
+                                                </svg>
+                                            </a>
+                                        </div>
+                                        <div class="btn-group btn-group-sm edit-buttons d-none">
+                                            <button type="button" class="btn btn-success btn-save-time" title="Speichern">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-check-lg" viewBox="0 0 16 16">
+                                                    <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425z"/>
+                                                </svg>
+                                            </button>
+                                            <button type="button" class="btn btn-secondary btn-cancel-time" title="Abbrechen">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
+                                                    <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light">
+                            <th colspan="5" class="text-end">Gesamt @Model.MonthName:</th>
+                            <th class="text-end"><strong>@string.Format("{0:hh\\:mm}", Model.MonthTotal)</strong></th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-info text-center">
+        <p class="mb-0">Keine Zeiteinträge für @Model.MonthName gefunden.</p>
+        <p class="mb-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-info-circle mb-3" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533z"/>
+                <circle cx="8" cy="4.5" r="1"/>
+            </svg>
+        </p>
+        <h5>Noch keine Zeiteinträge heute</h5>
+        <p class="text-muted">Starten Sie einen Timer oder erstellen Sie einen manuellen Eintrag.</p>
+    </div>
+}
+
+<div class="mt-4 text-center">
+    <a asp-page="./History" class="btn btn-outline-secondary">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-calendar3" viewBox="0 0 16 16">
+            <path d="M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2M1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857z"/>
+            <path d="M6.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2"/>
+        </svg>
+        Alle Einträge ansehen
+    </a>
+</div>
+
+@section Scripts {
+    @if (Model.ActiveTimer != null)
+    {
+        <script>
+            // Timer calculation
+            const startTime = new Date('@Model.ActiveTimer.StartTime.ToString("O")');
+
+            function updateTimer() {
+                const now = new Date();
+                const diff = Math.floor((now - startTime) / 1000);
+
+                const hours = Math.floor(diff / 3600);
+                const minutes = Math.floor((diff % 3600) / 60);
+                const seconds = diff % 60;
+
+                const display =
+                    String(hours).padStart(2, '0') + ':' +
+                    String(minutes).padStart(2, '0') + ':' +
+                    String(seconds).padStart(2, '0');
+
+                document.getElementById('timer-display').textContent = display;
+            }
+
+            updateTimer();
+            setInterval(updateTimer, 1000);
+        </script>
+    }
+
+    <script>
+        // Inline time editing
+        document.addEventListener('DOMContentLoaded', function() {
+            // Edit button click
+            document.querySelectorAll('.btn-edit-time').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const row = this.closest('tr');
+                    enterEditMode(row);
+                });
+            });
+
+            // Save button click
+            document.querySelectorAll('.btn-save-time').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const row = this.closest('tr');
+                    saveTimeEdit(row);
+                });
+            });
+
+            // Cancel button click
+            document.querySelectorAll('.btn-cancel-time').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const row = this.closest('tr');
+                    exitEditMode(row);
+                });
+            });
+
+            function enterEditMode(row) {
+                // Hide displays, show inputs
+                row.querySelectorAll('.time-display').forEach(el => el.classList.add('d-none'));
+                row.querySelectorAll('.time-edit').forEach(el => el.classList.remove('d-none'));
+
+                // Swap buttons
+                row.querySelector('.action-buttons').classList.add('d-none');
+                row.querySelector('.edit-buttons').classList.remove('d-none');
+            }
+
+            function exitEditMode(row) {
+                // Show displays, hide inputs
+                row.querySelectorAll('.time-display').forEach(el => el.classList.remove('d-none'));
+                row.querySelectorAll('.time-edit').forEach(el => el.classList.add('d-none'));
+
+                // Swap buttons
+                row.querySelector('.action-buttons').classList.remove('d-none');
+                row.querySelector('.edit-buttons').classList.add('d-none');
+
+                // Reset input values to original
+                row.querySelectorAll('.time-edit').forEach(input => {
+                    const display = input.parentElement.querySelector('.time-display');
+                    if (display) {
+                        input.value = display.textContent.trim();
+                    }
+                });
+            }
+
+            function saveTimeEdit(row) {
+                const entryId = row.dataset.entryId;
+                const dateText = row.querySelector('td:first-child strong').textContent.trim();
+                const startInput = row.querySelector('[data-field="start"]');
+                const endInput = row.querySelector('[data-field="end"]');
+
+                if (!startInput || !endInput) return;
+
+                // Parse date (format: dd.MM.yyyy)
+                const dateParts = dateText.split('.');
+                const date = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+
+                const formData = new FormData();
+                formData.append('id', entryId);
+                formData.append('date', date);
+                formData.append('startTime', startInput.value);
+                formData.append('endTime', endInput.value);
+                formData.append('handler', 'QuickUpdate');
+
+                // Disable buttons
+                row.querySelector('.btn-save-time').disabled = true;
+                row.querySelector('.btn-cancel-time').disabled = true;
+
+                fetch('?handler=QuickUpdate', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update displays
+                        row.querySelector('[data-field="start"]').parentElement.querySelector('.time-display').textContent = startInput.value;
+                        row.querySelector('[data-field="end"]').parentElement.querySelector('.time-display').textContent = endInput.value;
+                        row.querySelector('.duration-display').textContent = data.duration;
+
+                        exitEditMode(row);
+
+                        // Show success message (optional)
+                        showToast('Zeiten erfolgreich aktualisiert', 'success');
+                    } else {
+                        alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+                    }
+                })
+                .catch(error => {
+                    alert('Fehler beim Speichern: ' + error.message);
+                })
+                .finally(() => {
+                    row.querySelector('.btn-save-time').disabled = false;
+                    row.querySelector('.btn-cancel-time').disabled = false;
+                });
+            }
+
+            function showToast(message, type) {
+                // Simple toast notification
+                const toast = document.createElement('div');
+                toast.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
+                toast.style.zIndex = '9999';
+                toast.textContent = message;
+                document.body.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            }
+        });
+    </script>
+}

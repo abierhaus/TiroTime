@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TiroTime.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using TiroTime.Infrastructure.Persistence;
 namespace TiroTime.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251104154656_AddClientsAndProjects")]
+    partial class AddClientsAndProjects
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -212,53 +215,6 @@ namespace TiroTime.Infrastructure.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("Projects");
-                });
-
-            modelBuilder.Entity("TiroTime.Domain.Entities.TimeEntry", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<TimeSpan>("Duration")
-                        .HasColumnType("time");
-
-                    b.Property<DateTime?>("EndTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsRunning")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("StartTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.HasIndex("StartTime");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "IsRunning");
-
-                    b.ToTable("TimeEntries");
                 });
 
             modelBuilder.Entity("TiroTime.Domain.Identity.ApplicationRole", b =>
@@ -634,17 +590,6 @@ namespace TiroTime.Infrastructure.Migrations
 
                     b.Navigation("HourlyRate")
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("TiroTime.Domain.Entities.TimeEntry", b =>
-                {
-                    b.HasOne("TiroTime.Domain.Entities.Project", "Project")
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Project");
                 });
 #pragma warning restore 612, 618
         }
