@@ -24,4 +24,14 @@ public interface IReportService
         Guid userId,
         GenerateReportDto dto,
         CancellationToken cancellationToken = default);
+
+    Task<Result<(byte[] Data, string FileName)>> ExportDetailedEntriesToExcelAsync(
+        Guid userId,
+        GenerateReportDto dto,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<(byte[] Data, string FileName)>> ExportDetailedEntriesToPdfAsync(
+        Guid userId,
+        GenerateReportDto dto,
+        CancellationToken cancellationToken = default);
 }

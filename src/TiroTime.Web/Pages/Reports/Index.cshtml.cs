@@ -107,6 +107,40 @@ public class IndexModel : PageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostExportDetailedExcelAsync()
+    {
+        var userId = _currentUserService.UserId!.Value;
+        var dto = new GenerateReportDto(StartDate, EndDate, ProjectId, ClientId);
+
+        var result = await _reportService.ExportDetailedEntriesToExcelAsync(userId, dto);
+
+        if (result.IsSuccess)
+        {
+            return File(result.Value.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", result.Value.FileName);
+        }
+
+        _logger.LogError("Detailed Excel export failed: {Error}", result.Error);
+        TempData["ErrorMessage"] = result.Error;
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostExportDetailedPdfAsync()
+    {
+        var userId = _currentUserService.UserId!.Value;
+        var dto = new GenerateReportDto(StartDate, EndDate, ProjectId, ClientId);
+
+        var result = await _reportService.ExportDetailedEntriesToPdfAsync(userId, dto);
+
+        if (result.IsSuccess)
+        {
+            return File(result.Value.Data, "application/pdf", result.Value.FileName);
+        }
+
+        _logger.LogError("Detailed PDF export failed: {Error}", result.Error);
+        TempData["ErrorMessage"] = result.Error;
+        return RedirectToPage();
+    }
+
     private async Task LoadDropdownsAsync()
     {
         var projectsResult = await _projectService.GetAllProjectsAsync(includeInactive: false);

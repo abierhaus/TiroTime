@@ -3,6 +3,9 @@ using System.Text;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using TiroTime.Application.Common;
 using TiroTime.Application.DTOs;
 using TiroTime.Application.Interfaces;
@@ -250,6 +253,203 @@ public class ReportService : IReportService
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
         return Result.Success(stream.ToArray());
+    }
+
+    public async Task<Result<(byte[] Data, string FileName)>> ExportDetailedEntriesToExcelAsync(
+        Guid userId,
+        GenerateReportDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var entriesResult = await GetTimeEntriesReportAsync(userId, dto, cancellationToken);
+
+        if (!entriesResult.IsSuccess)
+        {
+            return Result.Failure<(byte[], string)>(entriesResult.Error);
+        }
+
+        var entries = entriesResult.Value.ToList();
+        var fileName = GenerateFileName(entries, dto.StartDate, dto.EndDate, "xlsx");
+
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Zeiteinträge");
+
+        // Set landscape orientation
+        sheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+        sheet.PageSetup.FitToPages(1, 0); // Fit to 1 page wide
+
+        // Header (without "Betrag" column)
+        sheet.Cell(1, 1).Value = "Datum";
+        sheet.Cell(1, 2).Value = "Projekt";
+        sheet.Cell(1, 3).Value = "Kunde";
+        sheet.Cell(1, 4).Value = "Beschreibung";
+        sheet.Cell(1, 5).Value = "Von";
+        sheet.Cell(1, 6).Value = "Bis";
+        sheet.Cell(1, 7).Value = "Dauer (Std)";
+        sheet.Cell(1, 8).Value = "Stundensatz";
+        sheet.Cell(1, 9).Value = "Währung";
+
+        var headerRange = sheet.Range(1, 1, 1, 9);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+
+        // Data
+        var row = 2;
+        foreach (var entry in entries)
+        {
+            sheet.Cell(row, 1).Value = entry.Date.ToString("dd.MM.yyyy");
+            sheet.Cell(row, 2).Value = entry.ProjectName;
+            sheet.Cell(row, 3).Value = entry.ClientName;
+            sheet.Cell(row, 4).Value = entry.Description ?? "";
+            sheet.Cell(row, 5).Value = entry.StartTime.ToString(@"hh\:mm");
+            sheet.Cell(row, 6).Value = entry.EndTime.ToString(@"hh\:mm");
+            sheet.Cell(row, 7).Value = entry.Duration.TotalHours;
+            sheet.Cell(row, 7).Style.NumberFormat.Format = "0.00";
+            sheet.Cell(row, 8).Value = entry.HourlyRate;
+            sheet.Cell(row, 8).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 9).Value = entry.Currency;
+            row++;
+        }
+
+        sheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return Result.Success((stream.ToArray(), fileName));
+    }
+
+    public async Task<Result<(byte[] Data, string FileName)>> ExportDetailedEntriesToPdfAsync(
+        Guid userId,
+        GenerateReportDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        // Configure QuestPDF license
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        var entriesResult = await GetTimeEntriesReportAsync(userId, dto, cancellationToken);
+
+        if (!entriesResult.IsSuccess)
+        {
+            return Result.Failure<(byte[], string)>(entriesResult.Error);
+        }
+
+        var entries = entriesResult.Value.ToList();
+        var fileName = GenerateFileName(entries, dto.StartDate, dto.EndDate, "pdf");
+
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4.Landscape());
+                page.Margin(1, Unit.Centimetre);
+                page.DefaultTextStyle(x => x.FontSize(9));
+
+                page.Header().Text($"Zeiteinträge: {dto.StartDate:dd.MM.yyyy} - {dto.EndDate:dd.MM.yyyy}")
+                    .FontSize(14)
+                    .Bold()
+                    .AlignCenter();
+
+                page.Content().Table(table =>
+                {
+                    // Define columns (without "Betrag" column)
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(1.5f); // Datum
+                        columns.RelativeColumn(2);    // Projekt
+                        columns.RelativeColumn(2);    // Kunde
+                        columns.RelativeColumn(3);    // Beschreibung
+                        columns.RelativeColumn(1);    // Von
+                        columns.RelativeColumn(1);    // Bis
+                        columns.RelativeColumn(1.2f); // Dauer
+                        columns.RelativeColumn(1.5f); // Stundensatz
+                        columns.RelativeColumn(1);    // Währung
+                    });
+
+                    // Header
+                    table.Header(header =>
+                    {
+                        header.Cell().Element(CellStyle).Text("Datum").Bold();
+                        header.Cell().Element(CellStyle).Text("Projekt").Bold();
+                        header.Cell().Element(CellStyle).Text("Kunde").Bold();
+                        header.Cell().Element(CellStyle).Text("Beschreibung").Bold();
+                        header.Cell().Element(CellStyle).Text("Von").Bold();
+                        header.Cell().Element(CellStyle).Text("Bis").Bold();
+                        header.Cell().Element(CellStyle).Text("Dauer").Bold();
+                        header.Cell().Element(CellStyle).Text("Stundensatz").Bold();
+                        header.Cell().Element(CellStyle).Text("Währung").Bold();
+
+                        static IContainer CellStyle(IContainer container)
+                        {
+                            return container
+                                .Border(1)
+                                .BorderColor(Colors.Grey.Lighten2)
+                                .Background(Colors.Grey.Lighten3)
+                                .Padding(5);
+                        }
+                    });
+
+                    // Data rows
+                    foreach (var entry in entries)
+                    {
+                        table.Cell().Element(CellStyle).Text(entry.Date.ToString("dd.MM.yyyy"));
+                        table.Cell().Element(CellStyle).Text(entry.ProjectName);
+                        table.Cell().Element(CellStyle).Text(entry.ClientName);
+                        table.Cell().Element(CellStyle).Text(entry.Description ?? "-");
+                        table.Cell().Element(CellStyle).Text(entry.StartTime.ToString(@"hh\:mm"));
+                        table.Cell().Element(CellStyle).Text(entry.EndTime.ToString(@"hh\:mm"));
+                        table.Cell().Element(CellStyle).Text(entry.Duration.ToString(@"hh\:mm"));
+                        table.Cell().Element(CellStyle).AlignRight().Text(entry.HourlyRate.ToString("N2"));
+                        table.Cell().Element(CellStyle).Text(entry.Currency);
+
+                        static IContainer CellStyle(IContainer container)
+                        {
+                            return container
+                                .Border(1)
+                                .BorderColor(Colors.Grey.Lighten2)
+                                .Padding(5);
+                        }
+                    }
+                });
+
+                page.Footer()
+                    .AlignCenter()
+                    .Text(text =>
+                    {
+                        text.Span("Seite ");
+                        text.CurrentPageNumber();
+                        text.Span(" von ");
+                        text.TotalPages();
+                    });
+            });
+        });
+
+        var pdfBytes = document.GeneratePdf();
+        return Result.Success((pdfBytes, fileName));
+    }
+
+    private static string GenerateFileName(
+        IEnumerable<TimeEntryReportDto> entries,
+        DateTime startDate,
+        DateTime endDate,
+        string extension)
+    {
+        var entryList = entries.ToList();
+
+        // Get unique client names
+        var clientNames = entryList.Select(e => e.ClientName).Distinct().ToList();
+
+        // Use client name if only one, otherwise "Alle"
+        var clientPart = clientNames.Count == 1 ? clientNames[0] : "Alle";
+
+        // Sanitize filename
+        clientPart = SanitizeFileName(clientPart);
+
+        return $"{clientPart}-{startDate:yyyy-MM-dd}-{endDate:yyyy-MM-dd}.{extension}";
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static string EscapeCsv(string value)
