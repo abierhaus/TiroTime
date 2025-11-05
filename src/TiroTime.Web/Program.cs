@@ -4,6 +4,7 @@ using TiroTime.Application.Interfaces;
 using TiroTime.Domain.Identity;
 using TiroTime.Infrastructure;
 using TiroTime.Infrastructure.Persistence;
+using TiroTime.Web.Middleware;
 using TiroTime.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -73,6 +74,10 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.UseAuthentication();
+
+// Auto-login for development (only on localhost with single user)
+app.UseMiddleware<AutoLoginMiddleware>();
+
 app.UseAuthorization();
 
 app.MapRazorPages();
