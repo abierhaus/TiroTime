@@ -98,15 +98,19 @@ public class EditModel : PageModel
 
         var userId = _currentUserService.UserId!.Value;
 
-        // Combine date and time
-        var startDateTime = Input.Date.Date + Input.StartTime;
-        var endDateTime = Input.Date.Date + Input.EndTime;
+        // Combine date and time (local time)
+        var localStartDateTime = Input.Date.Date + Input.StartTime;
+        var localEndDateTime = Input.Date.Date + Input.EndTime;
 
         // Handle overnight entries
-        if (endDateTime <= startDateTime)
+        if (localEndDateTime <= localStartDateTime)
         {
-            endDateTime = endDateTime.AddDays(1);
+            localEndDateTime = localEndDateTime.AddDays(1);
         }
+
+        // Convert local time to UTC
+        var startDateTime = DateTime.SpecifyKind(localStartDateTime, DateTimeKind.Local).ToUniversalTime();
+        var endDateTime = DateTime.SpecifyKind(localEndDateTime, DateTimeKind.Local).ToUniversalTime();
 
         var dto = new UpdateTimeEntryDto(
             Input.Id,

@@ -121,17 +121,29 @@ public class IndexModel : PageModel
     {
         var userId = _currentUserService.UserId!.Value;
 
-        // Combine date and time
-        var startDateTime = date.Date + startTime;
-        var endDateTime = date.Date + endTime;
-
-        // Handle overnight entries
-        if (endDateTime <= startDateTime)
+        // Get the existing entry to preserve description
+        var existingResult = await _timeEntryService.GetTimeEntryByIdAsync(userId, id);
+        if (!existingResult.IsSuccess)
         {
-            endDateTime = endDateTime.AddDays(1);
+            return new JsonResult(new { success = false, error = "Eintrag nicht gefunden" });
         }
 
-        var dto = new UpdateTimeEntryDto(id, startDateTime, endDateTime, null);
+        // Combine date and time (local time)
+        var localStartDateTime = date.Date + startTime;
+        var localEndDateTime = date.Date + endTime;
+
+        // Handle overnight entries
+        if (localEndDateTime <= localStartDateTime)
+        {
+            localEndDateTime = localEndDateTime.AddDays(1);
+        }
+
+        // Convert local time to UTC
+        var startDateTime = DateTime.SpecifyKind(localStartDateTime, DateTimeKind.Local).ToUniversalTime();
+        var endDateTime = DateTime.SpecifyKind(localEndDateTime, DateTimeKind.Local).ToUniversalTime();
+
+        // Preserve the existing description
+        var dto = new UpdateTimeEntryDto(id, startDateTime, endDateTime, existingResult.Value.Description);
         var result = await _timeEntryService.UpdateTimeEntryAsync(userId, dto);
 
         if (result.IsSuccess)
@@ -160,15 +172,19 @@ public class IndexModel : PageModel
         var startTime = original.StartTime.ToLocalTime().TimeOfDay;
         var endTime = original.EndTime?.ToLocalTime().TimeOfDay ?? TimeSpan.Zero;
 
-        // Combine with today's date
-        var newStartDateTime = today + startTime;
-        var newEndDateTime = today + endTime;
+        // Combine with today's date (local time)
+        var localStartDateTime = today + startTime;
+        var localEndDateTime = today + endTime;
 
         // Handle overnight entries
-        if (newEndDateTime <= newStartDateTime && original.EndTime.HasValue)
+        if (localEndDateTime <= localStartDateTime && original.EndTime.HasValue)
         {
-            newEndDateTime = newEndDateTime.AddDays(1);
+            localEndDateTime = localEndDateTime.AddDays(1);
         }
+
+        // Convert local time to UTC
+        var newStartDateTime = DateTime.SpecifyKind(localStartDateTime, DateTimeKind.Local).ToUniversalTime();
+        var newEndDateTime = DateTime.SpecifyKind(localEndDateTime, DateTimeKind.Local).ToUniversalTime();
 
         // Create new entry with today's date
         var dto = new CreateManualTimeEntryDto(
