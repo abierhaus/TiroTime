@@ -94,8 +94,25 @@ public class IndexModel : PageModel
     {
         ValidationWarnings.Clear();
 
-        // Group entries by date
-        var entriesByDate = entries
+        // Keywords that exclude entries from validation (case-insensitive)
+        var validationExclusionKeywords = new List<string>
+        {
+            "Pauschal"
+        };
+
+        // Filter entries: exclude entries with exclusion keywords in description
+        var filteredEntries = entries.Where(e =>
+        {
+            if (string.IsNullOrWhiteSpace(e.Description))
+                return true; // No description, include in validation
+
+            // Check if description contains any exclusion keyword (case-insensitive)
+            return !validationExclusionKeywords.Any(keyword =>
+                e.Description.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        }).ToList();
+
+        // Group filtered entries by date
+        var entriesByDate = filteredEntries
             .GroupBy(e => e.StartTime.ToLocalTime().Date)
             .ToList();
 
