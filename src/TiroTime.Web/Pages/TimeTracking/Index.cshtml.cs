@@ -141,4 +141,50 @@ public class IndexModel : PageModel
 
         return new JsonResult(new { success = false, error = result.Error });
     }
+
+    public async Task<IActionResult> OnPostDuplicateEntryAsync(Guid id)
+    {
+        var userId = _currentUserService.UserId!.Value;
+
+        // Get the original entry
+        var originalResult = await _timeEntryService.GetTimeEntryByIdAsync(userId, id);
+        if (!originalResult.IsSuccess)
+        {
+            return new JsonResult(new { success = false, error = "Eintrag nicht gefunden" });
+        }
+
+        var original = originalResult.Value;
+        var today = DateTime.Today;
+
+        // Extract time components from original entry
+        var startTime = original.StartTime.ToLocalTime().TimeOfDay;
+        var endTime = original.EndTime?.ToLocalTime().TimeOfDay ?? TimeSpan.Zero;
+
+        // Combine with today's date
+        var newStartDateTime = today + startTime;
+        var newEndDateTime = today + endTime;
+
+        // Handle overnight entries
+        if (newEndDateTime <= newStartDateTime && original.EndTime.HasValue)
+        {
+            newEndDateTime = newEndDateTime.AddDays(1);
+        }
+
+        // Create new entry with today's date
+        var dto = new CreateManualTimeEntryDto(
+            original.ProjectId,
+            newStartDateTime,
+            newEndDateTime,
+            original.Description);
+
+        var result = await _timeEntryService.CreateManualTimeEntryAsync(userId, dto);
+
+        if (result.IsSuccess)
+        {
+            _logger.LogInformation("Zeiteintrag dupliziert: Original {OriginalId}, Neu {NewId}", id, result.Value.Id);
+            return new JsonResult(new { success = true });
+        }
+
+        return new JsonResult(new { success = false, error = result.Error });
+    }
 }
