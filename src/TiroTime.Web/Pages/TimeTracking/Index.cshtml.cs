@@ -33,6 +33,15 @@ public class IndexModel : PageModel
     public int CurrentYear { get; set; }
     public int CurrentMonth { get; set; }
     public string MonthName { get; set; } = string.Empty;
+    public List<ValidationWarning> ValidationWarnings { get; set; } = new();
+
+    public class ValidationWarning
+    {
+        public string Type { get; set; } = string.Empty; // "weekend" or "overlap"
+        public string Message { get; set; } = string.Empty;
+        public DateTime Date { get; set; }
+        public List<Guid> AffectedEntryIds { get; set; } = new();
+    }
 
     public async Task OnGetAsync(int? year, int? month)
     {
@@ -75,6 +84,69 @@ public class IndexModel : PageModel
         {
             MonthEntries = entriesResult.Value.Where(e => !e.IsRunning).OrderByDescending(e => e.StartTime);
             MonthTotal = TimeSpan.FromTicks(MonthEntries.Sum(e => e.Duration.Ticks));
+
+            // Validate entries
+            ValidateEntries(MonthEntries);
+        }
+    }
+
+    private void ValidateEntries(IEnumerable<TimeEntryDto> entries)
+    {
+        ValidationWarnings.Clear();
+
+        // Group entries by date
+        var entriesByDate = entries
+            .GroupBy(e => e.StartTime.ToLocalTime().Date)
+            .ToList();
+
+        foreach (var dateGroup in entriesByDate)
+        {
+            var date = dateGroup.Key;
+            var dayEntries = dateGroup.OrderBy(e => e.StartTime).ToList();
+
+            // Check for weekend work
+            if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
+            {
+                var dayName = date.ToString("dddd", new System.Globalization.CultureInfo("de-DE"));
+                ValidationWarnings.Add(new ValidationWarning
+                {
+                    Type = "weekend",
+                    Message = $"Wochenendarbeit am {date:dd.MM.yyyy} ({dayName})",
+                    Date = date,
+                    AffectedEntryIds = dayEntries.Select(e => e.Id).ToList()
+                });
+            }
+
+            // Check for overlapping time entries
+            for (int i = 0; i < dayEntries.Count - 1; i++)
+            {
+                var current = dayEntries[i];
+                var currentStart = current.StartTime.ToLocalTime();
+                var currentEnd = current.EndTime?.ToLocalTime();
+
+                if (!currentEnd.HasValue) continue;
+
+                for (int j = i + 1; j < dayEntries.Count; j++)
+                {
+                    var next = dayEntries[j];
+                    var nextStart = next.StartTime.ToLocalTime();
+                    var nextEnd = next.EndTime?.ToLocalTime();
+
+                    if (!nextEnd.HasValue) continue;
+
+                    // Check if times overlap
+                    if (currentStart < nextEnd && nextStart < currentEnd)
+                    {
+                        ValidationWarnings.Add(new ValidationWarning
+                        {
+                            Type = "overlap",
+                            Message = $"Zeitüberschneidung am {date:dd.MM.yyyy}: {currentStart:HH:mm}-{currentEnd.Value:HH:mm} und {nextStart:HH:mm}-{nextEnd.Value:HH:mm}",
+                            Date = date,
+                            AffectedEntryIds = new List<Guid> { current.Id, next.Id }
+                        });
+                    }
+                }
+            }
         }
     }
 
