@@ -6,24 +6,15 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.Projects;
 
 [Authorize]
-public class IndexModel : PageModel
+public class IndexModel(
+    IProjectService projectService,
+    ILogger<IndexModel> logger) : PageModel
 {
-    private readonly IProjectService _projectService;
-    private readonly ILogger<IndexModel> _logger;
-
-    public IndexModel(
-        IProjectService projectService,
-        ILogger<IndexModel> logger)
-    {
-        _projectService = projectService;
-        _logger = logger;
-    }
-
-    public IEnumerable<ProjectDto> Projects { get; set; } = Array.Empty<ProjectDto>();
+    public IEnumerable<ProjectDto> Projects { get; set; } = [];
 
     public async Task OnGetAsync()
     {
-        var result = await _projectService.GetAllProjectsAsync(includeInactive: false);
+        var result = await projectService.GetAllProjectsAsync(includeInactive: false);
 
         if (result.IsSuccess)
         {
@@ -31,8 +22,8 @@ public class IndexModel : PageModel
         }
         else
         {
-            _logger.LogError("Fehler beim Laden der Projekte: {Error}", result.Error);
-            Projects = Array.Empty<ProjectDto>();
+            logger.LogError("Fehler beim Laden der Projekte: {Error}", result.Error);
+            Projects = [];
         }
     }
 }

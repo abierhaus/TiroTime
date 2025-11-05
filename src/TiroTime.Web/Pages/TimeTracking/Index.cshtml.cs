@@ -7,40 +7,25 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.TimeTracking;
 
 [Authorize]
-public class IndexModel : PageModel
+public class IndexModel(
+    ITimeEntryService timeEntryService,
+    IProjectService projectService,
+    ICurrentUserService currentUserService,
+    ITimeEntryValidationService validationService,
+    ILogger<IndexModel> logger) : PageModel
 {
-    private readonly ITimeEntryService _timeEntryService;
-    private readonly IProjectService _projectService;
-    private readonly ICurrentUserService _currentUserService;
-    private readonly ITimeEntryValidationService _validationService;
-    private readonly ILogger<IndexModel> _logger;
-
-    public IndexModel(
-        ITimeEntryService timeEntryService,
-        IProjectService projectService,
-        ICurrentUserService currentUserService,
-        ITimeEntryValidationService validationService,
-        ILogger<IndexModel> logger)
-    {
-        _timeEntryService = timeEntryService;
-        _projectService = projectService;
-        _currentUserService = currentUserService;
-        _validationService = validationService;
-        _logger = logger;
-    }
-
     public TimeEntryDto? ActiveTimer { get; set; }
-    public IEnumerable<ProjectDto> Projects { get; set; } = Array.Empty<ProjectDto>();
-    public IEnumerable<TimeEntryDto> MonthEntries { get; set; } = Array.Empty<TimeEntryDto>();
+    public IEnumerable<ProjectDto> Projects { get; set; } = [];
+    public IEnumerable<TimeEntryDto> MonthEntries { get; set; } = [];
     public TimeSpan MonthTotal { get; set; }
     public int CurrentYear { get; set; }
     public int CurrentMonth { get; set; }
     public string MonthName { get; set; } = string.Empty;
-    public List<TimeEntryValidationWarning> ValidationWarnings { get; set; } = new();
+    public List<TimeEntryValidationWarning> ValidationWarnings { get; set; } = [];
 
     public async Task OnGetAsync(int? year, int? month)
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
         // Determine which month to show
         var today = DateTime.Today;
@@ -59,21 +44,21 @@ public class IndexModel : PageModel
         MonthName = monthStart.ToString("MMMM yyyy", new System.Globalization.CultureInfo("de-DE"));
 
         // Get active timer
-        var activeTimerResult = await _timeEntryService.GetActiveTimerAsync(userId);
+        var activeTimerResult = await timeEntryService.GetActiveTimerAsync(userId);
         if (activeTimerResult.IsSuccess)
         {
             ActiveTimer = activeTimerResult.Value;
         }
 
         // Get projects for dropdown
-        var projectsResult = await _projectService.GetAllProjectsAsync(includeInactive: false);
+        var projectsResult = await projectService.GetAllProjectsAsync(includeInactive: false);
         if (projectsResult.IsSuccess)
         {
             Projects = projectsResult.Value;
         }
 
         // Get month's entries
-        var entriesResult = await _timeEntryService.GetTimeEntriesByDateRangeAsync(userId, monthStart, monthEnd);
+        var entriesResult = await timeEntryService.GetTimeEntriesByDateRangeAsync(userId, monthStart, monthEnd);
 
         if (entriesResult.IsSuccess)
         {
@@ -81,20 +66,20 @@ public class IndexModel : PageModel
             MonthTotal = TimeSpan.FromTicks(MonthEntries.Sum(e => e.Duration.Ticks));
 
             // Validate entries using the validation service
-            ValidationWarnings = _validationService.ValidateTimeEntries(MonthEntries).ToList();
+            ValidationWarnings = validationService.ValidateTimeEntries(MonthEntries).ToList();
         }
     }
 
     public async Task<IActionResult> OnPostStartTimerAsync(Guid projectId, string? description)
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
         var dto = new StartTimerDto(projectId, description);
-        var result = await _timeEntryService.StartTimerAsync(userId, dto);
+        var result = await timeEntryService.StartTimerAsync(userId, dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Timer gestartet für Projekt {ProjectId}", projectId);
+            logger.LogInformation("Timer gestartet für Projekt {ProjectId}", projectId);
             TempData["SuccessMessage"] = "Timer wurde gestartet.";
         }
         else
@@ -107,13 +92,13 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostStopTimerAsync(Guid timeEntryId)
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
-        var result = await _timeEntryService.StopTimerAsync(userId, timeEntryId);
+        var result = await timeEntryService.StopTimerAsync(userId, timeEntryId);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Timer gestoppt: {TimeEntryId}", timeEntryId);
+            logger.LogInformation("Timer gestoppt: {TimeEntryId}", timeEntryId);
             TempData["SuccessMessage"] = $"Timer gestoppt: {result.Value.Duration:hh\\:mm\\:ss}";
         }
         else
@@ -126,10 +111,10 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostQuickUpdateAsync(Guid id, DateTime date, TimeSpan startTime, TimeSpan endTime)
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
         // Get the existing entry to preserve description
-        var existingResult = await _timeEntryService.GetTimeEntryByIdAsync(userId, id);
+        var existingResult = await timeEntryService.GetTimeEntryByIdAsync(userId, id);
         if (!existingResult.IsSuccess)
         {
             return new JsonResult(new { success = false, error = "Eintrag nicht gefunden" });
@@ -151,7 +136,7 @@ public class IndexModel : PageModel
 
         // Preserve the existing description
         var dto = new UpdateTimeEntryDto(id, startDateTime, endDateTime, existingResult.Value.Description);
-        var result = await _timeEntryService.UpdateTimeEntryAsync(userId, dto);
+        var result = await timeEntryService.UpdateTimeEntryAsync(userId, dto);
 
         if (result.IsSuccess)
         {
@@ -163,10 +148,10 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostDuplicateEntryAsync(Guid id)
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
         // Get the original entry
-        var originalResult = await _timeEntryService.GetTimeEntryByIdAsync(userId, id);
+        var originalResult = await timeEntryService.GetTimeEntryByIdAsync(userId, id);
         if (!originalResult.IsSuccess)
         {
             return new JsonResult(new { success = false, error = "Eintrag nicht gefunden" });
@@ -200,11 +185,11 @@ public class IndexModel : PageModel
             newEndDateTime,
             original.Description);
 
-        var result = await _timeEntryService.CreateManualTimeEntryAsync(userId, dto);
+        var result = await timeEntryService.CreateManualTimeEntryAsync(userId, dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Zeiteintrag dupliziert: Original {OriginalId}, Neu {NewId}", id, result.Value.Id);
+            logger.LogInformation("Zeiteintrag dupliziert: Original {OriginalId}, Neu {NewId}", id, result.Value.Id);
             return new JsonResult(new { success = true });
         }
 

@@ -7,28 +7,13 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.Reports;
 
 [Authorize]
-public class IndexModel : PageModel
+public class IndexModel(
+    IReportService reportService,
+    IProjectService projectService,
+    IClientService clientService,
+    ICurrentUserService currentUserService,
+    ILogger<IndexModel> logger) : PageModel
 {
-    private readonly IReportService _reportService;
-    private readonly IProjectService _projectService;
-    private readonly IClientService _clientService;
-    private readonly ICurrentUserService _currentUserService;
-    private readonly ILogger<IndexModel> _logger;
-
-    public IndexModel(
-        IReportService reportService,
-        IProjectService projectService,
-        IClientService clientService,
-        ICurrentUserService currentUserService,
-        ILogger<IndexModel> logger)
-    {
-        _reportService = reportService;
-        _projectService = projectService;
-        _clientService = clientService;
-        _currentUserService = currentUserService;
-        _logger = logger;
-    }
-
     [BindProperty]
     public DateTime StartDate { get; set; }
 
@@ -41,10 +26,10 @@ public class IndexModel : PageModel
     [BindProperty]
     public Guid? ClientId { get; set; }
 
-    public IEnumerable<ProjectDto> Projects { get; set; } = Array.Empty<ProjectDto>();
-    public IEnumerable<ClientDto> Clients { get; set; } = Array.Empty<ClientDto>();
+    public IEnumerable<ProjectDto> Projects { get; set; } = [];
+    public IEnumerable<ClientDto> Clients { get; set; } = [];
     public ReportSummaryDto? Summary { get; set; }
-    public IEnumerable<TimeEntryReportDto> Entries { get; set; } = Array.Empty<TimeEntryReportDto>();
+    public IEnumerable<TimeEntryReportDto> Entries { get; set; } = [];
 
     public async Task OnGetAsync()
     {
@@ -73,10 +58,10 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostExportCsvAsync()
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
         var dto = new GenerateReportDto(StartDate, EndDate, ProjectId, ClientId);
 
-        var result = await _reportService.ExportToCsvAsync(userId, dto);
+        var result = await reportService.ExportToCsvAsync(userId, dto);
 
         if (result.IsSuccess)
         {
@@ -84,17 +69,17 @@ public class IndexModel : PageModel
             return File(result.Value, "text/csv", fileName);
         }
 
-        _logger.LogError("CSV export failed: {Error}", result.Error);
+        logger.LogError("CSV export failed: {Error}", result.Error);
         TempData["ErrorMessage"] = result.Error;
         return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostExportExcelAsync()
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
         var dto = new GenerateReportDto(StartDate, EndDate, ProjectId, ClientId);
 
-        var result = await _reportService.ExportToExcelAsync(userId, dto);
+        var result = await reportService.ExportToExcelAsync(userId, dto);
 
         if (result.IsSuccess)
         {
@@ -102,54 +87,54 @@ public class IndexModel : PageModel
             return File(result.Value, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
 
-        _logger.LogError("Excel export failed: {Error}", result.Error);
+        logger.LogError("Excel export failed: {Error}", result.Error);
         TempData["ErrorMessage"] = result.Error;
         return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostExportDetailedExcelAsync()
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
         var dto = new GenerateReportDto(StartDate, EndDate, ProjectId, ClientId);
 
-        var result = await _reportService.ExportDetailedEntriesToExcelAsync(userId, dto);
+        var result = await reportService.ExportDetailedEntriesToExcelAsync(userId, dto);
 
         if (result.IsSuccess)
         {
             return File(result.Value.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", result.Value.FileName);
         }
 
-        _logger.LogError("Detailed Excel export failed: {Error}", result.Error);
+        logger.LogError("Detailed Excel export failed: {Error}", result.Error);
         TempData["ErrorMessage"] = result.Error;
         return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostExportDetailedPdfAsync()
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
         var dto = new GenerateReportDto(StartDate, EndDate, ProjectId, ClientId);
 
-        var result = await _reportService.ExportDetailedEntriesToPdfAsync(userId, dto);
+        var result = await reportService.ExportDetailedEntriesToPdfAsync(userId, dto);
 
         if (result.IsSuccess)
         {
             return File(result.Value.Data, "application/pdf", result.Value.FileName);
         }
 
-        _logger.LogError("Detailed PDF export failed: {Error}", result.Error);
+        logger.LogError("Detailed PDF export failed: {Error}", result.Error);
         TempData["ErrorMessage"] = result.Error;
         return RedirectToPage();
     }
 
     private async Task LoadDropdownsAsync()
     {
-        var projectsResult = await _projectService.GetAllProjectsAsync(includeInactive: false);
+        var projectsResult = await projectService.GetAllProjectsAsync(includeInactive: false);
         if (projectsResult.IsSuccess)
         {
             Projects = projectsResult.Value;
         }
 
-        var clientsResult = await _clientService.GetAllClientsAsync(includeInactive: false);
+        var clientsResult = await clientService.GetAllClientsAsync(includeInactive: false);
         if (clientsResult.IsSuccess)
         {
             Clients = clientsResult.Value;
@@ -158,16 +143,16 @@ public class IndexModel : PageModel
 
     private async Task LoadReportAsync()
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
         var dto = new GenerateReportDto(StartDate, EndDate, ProjectId, ClientId);
 
-        var summaryResult = await _reportService.GetReportSummaryAsync(userId, dto);
+        var summaryResult = await reportService.GetReportSummaryAsync(userId, dto);
         if (summaryResult.IsSuccess)
         {
             Summary = summaryResult.Value;
         }
 
-        var entriesResult = await _reportService.GetTimeEntriesReportAsync(userId, dto);
+        var entriesResult = await reportService.GetTimeEntriesReportAsync(userId, dto);
         if (entriesResult.IsSuccess)
         {
             Entries = entriesResult.Value;

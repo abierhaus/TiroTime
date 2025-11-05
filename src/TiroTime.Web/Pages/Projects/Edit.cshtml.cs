@@ -8,18 +8,10 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.Projects;
 
 [Authorize]
-public class EditModel : PageModel
+public class EditModel(
+    IProjectService projectService,
+    ILogger<EditModel> logger) : PageModel
 {
-    private readonly IProjectService _projectService;
-    private readonly ILogger<EditModel> _logger;
-
-    public EditModel(
-        IProjectService projectService,
-        ILogger<EditModel> logger)
-    {
-        _projectService = projectService;
-        _logger = logger;
-    }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -71,7 +63,7 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
-        var result = await _projectService.GetProjectByIdAsync(id);
+        var result = await projectService.GetProjectByIdAsync(id);
 
         if (!result.IsSuccess)
         {
@@ -113,7 +105,7 @@ public class EditModel : PageModel
         if (!ModelState.IsValid)
         {
             // Reload client name
-            var projectResult = await _projectService.GetProjectByIdAsync(Input.Id);
+            var projectResult = await projectService.GetProjectByIdAsync(Input.Id);
             if (projectResult.IsSuccess)
             {
                 ClientName = projectResult.Value.ClientName;
@@ -146,11 +138,11 @@ public class EditModel : PageModel
             Input.StartDate,
             Input.EndDate);
 
-        var result = await _projectService.UpdateProjectAsync(dto);
+        var result = await projectService.UpdateProjectAsync(dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Projekt '{ProjectName}' wurde aktualisiert", Input.Name);
+            logger.LogInformation("Projekt '{ProjectName}' wurde aktualisiert", Input.Name);
             TempData["SuccessMessage"] = "Projekt wurde erfolgreich aktualisiert.";
             return RedirectToPage("./Index");
         }
@@ -158,7 +150,7 @@ public class EditModel : PageModel
         ModelState.AddModelError(string.Empty, result.Error);
 
         // Reload client name
-        var reloadResult = await _projectService.GetProjectByIdAsync(Input.Id);
+        var reloadResult = await projectService.GetProjectByIdAsync(Input.Id);
         if (reloadResult.IsSuccess)
         {
             ClientName = reloadResult.Value.ClientName;

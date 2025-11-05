@@ -5,14 +5,11 @@ namespace TiroTime.Application.Services;
 
 public class TimeEntryValidationService : ITimeEntryValidationService
 {
-    private readonly List<string> _validationExclusionKeywords = new()
-    {
-        "Pauschal"
-    };
+    private readonly List<string> _validationExclusionKeywords = ["Pauschal"];
 
     public IEnumerable<TimeEntryValidationWarning> ValidateTimeEntries(IEnumerable<TimeEntryDto> entries)
     {
-        var warnings = new List<TimeEntryValidationWarning>();
+        List<TimeEntryValidationWarning> warnings = [];
 
         // Filter entries: exclude entries with exclusion keywords in description
         var filteredEntries = entries.Where(e =>
@@ -62,7 +59,7 @@ public class TimeEntryValidationService : ITimeEntryValidationService
 
     private IEnumerable<TimeEntryValidationWarning> ValidateOverlappingEntries(DateTime date, List<TimeEntryDto> dayEntries)
     {
-        var warnings = new List<TimeEntryValidationWarning>();
+        List<TimeEntryValidationWarning> warnings = [];
 
         for (int i = 0; i < dayEntries.Count - 1; i++)
         {
@@ -88,7 +85,7 @@ public class TimeEntryValidationService : ITimeEntryValidationService
                         Type = "overlap",
                         Message = $"Zeitüberschneidung am {date:dd.MM.yyyy}: {currentStart:HH:mm}-{currentEnd.Value:HH:mm} und {nextStart:HH:mm}-{nextEnd.Value:HH:mm}",
                         Date = date,
-                        AffectedEntryIds = new List<Guid> { current.Id, next.Id }
+                        AffectedEntryIds = [current.Id, next.Id]
                     });
                 }
             }

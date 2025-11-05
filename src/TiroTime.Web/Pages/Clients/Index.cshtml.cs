@@ -6,24 +6,15 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.Clients;
 
 [Authorize]
-public class IndexModel : PageModel
+public class IndexModel(
+    IClientService clientService,
+    ILogger<IndexModel> logger) : PageModel
 {
-    private readonly IClientService _clientService;
-    private readonly ILogger<IndexModel> _logger;
-
-    public IndexModel(
-        IClientService clientService,
-        ILogger<IndexModel> logger)
-    {
-        _clientService = clientService;
-        _logger = logger;
-    }
-
-    public IEnumerable<ClientDto> Clients { get; set; } = Array.Empty<ClientDto>();
+    public IEnumerable<ClientDto> Clients { get; set; } = [];
 
     public async Task OnGetAsync()
     {
-        var result = await _clientService.GetAllClientsAsync(includeInactive: false);
+        var result = await clientService.GetAllClientsAsync(includeInactive: false);
 
         if (result.IsSuccess)
         {
@@ -31,8 +22,8 @@ public class IndexModel : PageModel
         }
         else
         {
-            _logger.LogError("Fehler beim Laden der Kunden: {Error}", result.Error);
-            Clients = Array.Empty<ClientDto>();
+            logger.LogError("Fehler beim Laden der Kunden: {Error}", result.Error);
+            Clients = [];
         }
     }
 }

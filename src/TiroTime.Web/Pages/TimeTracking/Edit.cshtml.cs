@@ -8,21 +8,11 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.TimeTracking;
 
 [Authorize]
-public class EditModel : PageModel
+public class EditModel(
+    ITimeEntryService timeEntryService,
+    ICurrentUserService currentUserService,
+    ILogger<EditModel> logger) : PageModel
 {
-    private readonly ITimeEntryService _timeEntryService;
-    private readonly ICurrentUserService _currentUserService;
-    private readonly ILogger<EditModel> _logger;
-
-    public EditModel(
-        ITimeEntryService timeEntryService,
-        ICurrentUserService currentUserService,
-        ILogger<EditModel> logger)
-    {
-        _timeEntryService = timeEntryService;
-        _currentUserService = currentUserService;
-        _logger = logger;
-    }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -53,8 +43,8 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
-        var userId = _currentUserService.UserId!.Value;
-        var result = await _timeEntryService.GetTimeEntryByIdAsync(userId, id);
+        var userId = currentUserService.UserId!.Value;
+        var result = await timeEntryService.GetTimeEntryByIdAsync(userId, id);
 
         if (!result.IsSuccess)
         {
@@ -96,7 +86,7 @@ public class EditModel : PageModel
             return Page();
         }
 
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
         // Combine date and time (local time)
         var localStartDateTime = Input.Date.Date + Input.StartTime;
@@ -118,11 +108,11 @@ public class EditModel : PageModel
             endDateTime,
             Input.Description);
 
-        var result = await _timeEntryService.UpdateTimeEntryAsync(userId, dto);
+        var result = await timeEntryService.UpdateTimeEntryAsync(userId, dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Zeiteintrag aktualisiert: {TimeEntryId}", Input.Id);
+            logger.LogInformation("Zeiteintrag aktualisiert: {TimeEntryId}", Input.Id);
             TempData["SuccessMessage"] = "Zeiteintrag wurde erfolgreich aktualisiert.";
             return RedirectToPage("./Index");
         }
@@ -135,12 +125,12 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnPostDeleteAsync()
     {
-        var userId = _currentUserService.UserId!.Value;
-        var result = await _timeEntryService.DeleteTimeEntryAsync(userId, Input.Id);
+        var userId = currentUserService.UserId!.Value;
+        var result = await timeEntryService.DeleteTimeEntryAsync(userId, Input.Id);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Zeiteintrag gelöscht: {TimeEntryId}", Input.Id);
+            logger.LogInformation("Zeiteintrag gelöscht: {TimeEntryId}", Input.Id);
             TempData["SuccessMessage"] = "Zeiteintrag wurde erfolgreich gelöscht.";
         }
         else
@@ -153,8 +143,8 @@ public class EditModel : PageModel
 
     private async Task<TimeEntryDto?> LoadTimeEntryAsync()
     {
-        var userId = _currentUserService.UserId!.Value;
-        var result = await _timeEntryService.GetTimeEntryByIdAsync(userId, Input.Id);
+        var userId = currentUserService.UserId!.Value;
+        var result = await timeEntryService.GetTimeEntryByIdAsync(userId, Input.Id);
 
         if (result.IsSuccess)
         {

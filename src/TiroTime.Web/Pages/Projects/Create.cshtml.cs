@@ -9,26 +9,15 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.Projects;
 
 [Authorize]
-public class CreateModel : PageModel
+public class CreateModel(
+    IProjectService projectService,
+    IClientService clientService,
+    ILogger<CreateModel> logger) : PageModel
 {
-    private readonly IProjectService _projectService;
-    private readonly IClientService _clientService;
-    private readonly ILogger<CreateModel> _logger;
-
-    public CreateModel(
-        IProjectService projectService,
-        IClientService clientService,
-        ILogger<CreateModel> logger)
-    {
-        _projectService = projectService;
-        _clientService = clientService;
-        _logger = logger;
-    }
-
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public SelectList ClientSelectList { get; set; } = new SelectList(Array.Empty<object>());
+    public SelectList ClientSelectList { get; set; } = new(Array.Empty<object>());
 
     public class InputModel
     {
@@ -85,24 +74,24 @@ public class CreateModel : PageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
-        _logger.LogInformation("=== OnPostAsync wurde aufgerufen ===");
-        _logger.LogInformation("Input.HourlyRateCurrency: '{Currency}' (Länge: {Length})",
+        logger.LogInformation("=== OnPostAsync wurde aufgerufen ===");
+        logger.LogInformation("Input.HourlyRateCurrency: '{Currency}' (Länge: {Length})",
             Input.HourlyRateCurrency ?? "NULL",
             Input.HourlyRateCurrency?.Length ?? 0);
 
         // Fix for empty currency - set default if empty and clear validation errors
         if (string.IsNullOrWhiteSpace(Input.HourlyRateCurrency))
         {
-            _logger.LogWarning("HourlyRateCurrency war leer, setze auf EUR");
+            logger.LogWarning("HourlyRateCurrency war leer, setze auf EUR");
             Input.HourlyRateCurrency = "EUR";
             ModelState.Remove("Input.HourlyRateCurrency");
         }
 
-        _logger.LogInformation("ModelState.IsValid: {IsValid}", ModelState.IsValid);
+        logger.LogInformation("ModelState.IsValid: {IsValid}", ModelState.IsValid);
 
         if (!ModelState.IsValid)
         {
-            _logger.LogWarning("ModelState ist ungültig");
+            logger.LogWarning("ModelState ist ungültig");
             foreach (var key in ModelState.Keys)
             {
                 var errors = ModelState[key]?.Errors;
@@ -110,7 +99,7 @@ public class CreateModel : PageModel
                 {
                     foreach (var error in errors)
                     {
-                        _logger.LogWarning("Validierungsfehler für {Key}: {Error}", key, error.ErrorMessage);
+                        logger.LogWarning("Validierungsfehler für {Key}: {Error}", key, error.ErrorMessage);
                     }
                 }
             }
@@ -142,11 +131,11 @@ public class CreateModel : PageModel
             Input.StartDate,
             Input.EndDate);
 
-        var result = await _projectService.CreateProjectAsync(dto);
+        var result = await projectService.CreateProjectAsync(dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Projekt '{ProjectName}' wurde erstellt", Input.Name);
+            logger.LogInformation("Projekt '{ProjectName}' wurde erstellt", Input.Name);
             TempData["SuccessMessage"] = "Projekt wurde erfolgreich erstellt.";
             return RedirectToPage("./Index");
         }
@@ -158,7 +147,7 @@ public class CreateModel : PageModel
 
     private async Task LoadClientsAsync()
     {
-        var clientsResult = await _clientService.GetAllClientsAsync(includeInactive: false);
+        var clientsResult = await clientService.GetAllClientsAsync(includeInactive: false);
 
         if (clientsResult.IsSuccess)
         {

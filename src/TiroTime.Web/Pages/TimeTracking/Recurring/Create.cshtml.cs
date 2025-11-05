@@ -10,29 +10,16 @@ using TiroTime.Domain.Enums;
 namespace TiroTime.Web.Pages.TimeTracking.Recurring;
 
 [Authorize]
-public class CreateModel : PageModel
+public class CreateModel(
+    IRecurringTimeEntryService recurringService,
+    IProjectService projectService,
+    ICurrentUserService currentUserService,
+    ILogger<CreateModel> logger) : PageModel
 {
-    private readonly IRecurringTimeEntryService _recurringService;
-    private readonly IProjectService _projectService;
-    private readonly ICurrentUserService _currentUserService;
-    private readonly ILogger<CreateModel> _logger;
-
-    public CreateModel(
-        IRecurringTimeEntryService recurringService,
-        IProjectService projectService,
-        ICurrentUserService currentUserService,
-        ILogger<CreateModel> logger)
-    {
-        _recurringService = recurringService;
-        _projectService = projectService;
-        _currentUserService = currentUserService;
-        _logger = logger;
-    }
-
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public SelectList ProjectSelectList { get; set; } = new SelectList(Array.Empty<object>());
+    public SelectList ProjectSelectList { get; set; } = new(Array.Empty<object>());
 
     public class InputModel
     {
@@ -121,7 +108,7 @@ public class CreateModel : PageModel
             return Page();
         }
 
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
         var dto = new CreateRecurringTimeEntryDto(
             Input.ProjectId,
@@ -138,11 +125,11 @@ public class CreateModel : PageModel
                 Input.EndDate,
                 Input.MaxOccurrences));
 
-        var result = await _recurringService.CreateAsync(userId, dto);
+        var result = await recurringService.CreateAsync(userId, dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Wiederkehrende Zeiterfassung erstellt: {Title}", Input.Title);
+            logger.LogInformation("Wiederkehrende Zeiterfassung erstellt: {Title}", Input.Title);
             TempData["SuccessMessage"] = "Wiederholung wurde erfolgreich erstellt.";
             return RedirectToPage("./Index");
         }
@@ -154,7 +141,7 @@ public class CreateModel : PageModel
 
     private async Task LoadProjectsAsync()
     {
-        var projectsResult = await _projectService.GetAllProjectsAsync(includeInactive: false);
+        var projectsResult = await projectService.GetAllProjectsAsync(includeInactive: false);
 
         if (projectsResult.IsSuccess)
         {

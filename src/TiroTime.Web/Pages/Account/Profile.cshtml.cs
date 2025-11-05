@@ -8,21 +8,11 @@ using TiroTime.Domain.Identity;
 namespace TiroTime.Web.Pages.Account;
 
 [Authorize]
-public class ProfileModel : PageModel
+public class ProfileModel(
+    UserManager<ApplicationUser> userManager,
+    SignInManager<ApplicationUser> signInManager,
+    ILogger<ProfileModel> logger) : PageModel
 {
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly ILogger<ProfileModel> _logger;
-
-    public ProfileModel(
-        UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager,
-        ILogger<ProfileModel> logger)
-    {
-        _userManager = userManager;
-        _signInManager = signInManager;
-        _logger = logger;
-    }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -51,7 +41,7 @@ public class ProfileModel : PageModel
 
     public async Task<IActionResult> OnGetAsync()
     {
-        var user = await _userManager.GetUserAsync(User);
+        var user = await userManager.GetUserAsync(User);
         if (user == null)
         {
             return NotFound($"Benutzer konnte nicht geladen werden.");
@@ -65,7 +55,7 @@ public class ProfileModel : PageModel
     {
         if (!ModelState.IsValid)
         {
-            var user = await _userManager.GetUserAsync(User);
+            var user = await userManager.GetUserAsync(User);
             if (user != null)
             {
                 Email = user.Email;
@@ -73,7 +63,7 @@ public class ProfileModel : PageModel
             return Page();
         }
 
-        var currentUser = await _userManager.GetUserAsync(User);
+        var currentUser = await userManager.GetUserAsync(User);
         if (currentUser == null)
         {
             return NotFound($"Benutzer konnte nicht geladen werden.");
@@ -81,7 +71,7 @@ public class ProfileModel : PageModel
 
         Email = currentUser.Email;
 
-        var changePasswordResult = await _userManager.ChangePasswordAsync(
+        var changePasswordResult = await userManager.ChangePasswordAsync(
             currentUser,
             Input.CurrentPassword,
             Input.NewPassword);
@@ -95,8 +85,8 @@ public class ProfileModel : PageModel
             return Page();
         }
 
-        await _signInManager.RefreshSignInAsync(currentUser);
-        _logger.LogInformation("Benutzer hat sein Passwort erfolgreich geändert.");
+        await signInManager.RefreshSignInAsync(currentUser);
+        logger.LogInformation("Benutzer hat sein Passwort erfolgreich geändert.");
         TempData["SuccessMessage"] = "Ihr Passwort wurde erfolgreich geändert.";
 
         return RedirectToPage();

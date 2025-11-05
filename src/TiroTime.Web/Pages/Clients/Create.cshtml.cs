@@ -8,18 +8,10 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.Clients;
 
 [Authorize]
-public class CreateModel : PageModel
+public class CreateModel(
+    IClientService clientService,
+    ILogger<CreateModel> logger) : PageModel
 {
-    private readonly IClientService _clientService;
-    private readonly ILogger<CreateModel> _logger;
-
-    public CreateModel(
-        IClientService clientService,
-        ILogger<CreateModel> logger)
-    {
-        _clientService = clientService;
-        _logger = logger;
-    }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -92,11 +84,11 @@ public class CreateModel : PageModel
             Input.TaxId,
             Input.Notes);
 
-        var result = await _clientService.CreateClientAsync(dto);
+        var result = await clientService.CreateClientAsync(dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Kunde '{ClientName}' wurde erstellt", Input.Name);
+            logger.LogInformation("Kunde '{ClientName}' wurde erstellt", Input.Name);
             TempData["SuccessMessage"] = "Kunde wurde erfolgreich erstellt.";
             return RedirectToPage("./Index");
         }

@@ -9,29 +9,16 @@ using TiroTime.Application.Interfaces;
 namespace TiroTime.Web.Pages.TimeTracking;
 
 [Authorize]
-public class CreateModel : PageModel
+public class CreateModel(
+    ITimeEntryService timeEntryService,
+    IProjectService projectService,
+    ICurrentUserService currentUserService,
+    ILogger<CreateModel> logger) : PageModel
 {
-    private readonly ITimeEntryService _timeEntryService;
-    private readonly IProjectService _projectService;
-    private readonly ICurrentUserService _currentUserService;
-    private readonly ILogger<CreateModel> _logger;
-
-    public CreateModel(
-        ITimeEntryService timeEntryService,
-        IProjectService projectService,
-        ICurrentUserService currentUserService,
-        ILogger<CreateModel> logger)
-    {
-        _timeEntryService = timeEntryService;
-        _projectService = projectService;
-        _currentUserService = currentUserService;
-        _logger = logger;
-    }
-
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public SelectList ProjectSelectList { get; set; } = new SelectList(Array.Empty<object>());
+    public SelectList ProjectSelectList { get; set; } = new(Array.Empty<object>());
 
     public class InputModel
     {
@@ -69,7 +56,7 @@ public class CreateModel : PageModel
             return Page();
         }
 
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
         // Combine date and time (local time)
         var localStartDateTime = Input.Date.Date + Input.StartTime;
@@ -91,11 +78,11 @@ public class CreateModel : PageModel
             endDateTime,
             Input.Description);
 
-        var result = await _timeEntryService.CreateManualTimeEntryAsync(userId, dto);
+        var result = await timeEntryService.CreateManualTimeEntryAsync(userId, dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Manueller Zeiteintrag erstellt für Projekt {ProjectId}", Input.ProjectId);
+            logger.LogInformation("Manueller Zeiteintrag erstellt für Projekt {ProjectId}", Input.ProjectId);
             TempData["SuccessMessage"] = "Zeiteintrag wurde erfolgreich erstellt.";
             return RedirectToPage("./Index");
         }
@@ -107,7 +94,7 @@ public class CreateModel : PageModel
 
     private async Task LoadProjectsAsync()
     {
-        var projectsResult = await _projectService.GetAllProjectsAsync(includeInactive: false);
+        var projectsResult = await projectService.GetAllProjectsAsync(includeInactive: false);
 
         if (projectsResult.IsSuccess)
         {

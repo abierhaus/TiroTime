@@ -6,18 +6,10 @@ using TiroTime.Domain.Identity;
 
 namespace TiroTime.Web.Pages.Account;
 
-public class LoginModel : PageModel
+public class LoginModel(
+    SignInManager<ApplicationUser> signInManager,
+    ILogger<LoginModel> logger) : PageModel
 {
-    private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly ILogger<LoginModel> _logger;
-
-    public LoginModel(
-        SignInManager<ApplicationUser> signInManager,
-        ILogger<LoginModel> logger)
-    {
-        _signInManager = signInManager;
-        _logger = logger;
-    }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -54,7 +46,7 @@ public class LoginModel : PageModel
             return Page();
         }
 
-        var result = await _signInManager.PasswordSignInAsync(
+        var result = await signInManager.PasswordSignInAsync(
             Input.Email,
             Input.Password,
             Input.RememberMe,
@@ -62,13 +54,13 @@ public class LoginModel : PageModel
 
         if (result.Succeeded)
         {
-            _logger.LogInformation("Benutzer hat sich angemeldet.");
+            logger.LogInformation("Benutzer hat sich angemeldet.");
             return LocalRedirect(returnUrl);
         }
 
         if (result.IsLockedOut)
         {
-            _logger.LogWarning("Benutzerkonto ist gesperrt.");
+            logger.LogWarning("Benutzerkonto ist gesperrt.");
             ModelState.AddModelError(string.Empty, "Ihr Konto ist gesperrt. Bitte versuchen Sie es später erneut.");
             return Page();
         }

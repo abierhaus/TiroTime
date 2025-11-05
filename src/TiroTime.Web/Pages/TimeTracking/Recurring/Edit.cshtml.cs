@@ -9,21 +9,11 @@ using TiroTime.Domain.Enums;
 namespace TiroTime.Web.Pages.TimeTracking.Recurring;
 
 [Authorize]
-public class EditModel : PageModel
+public class EditModel(
+    IRecurringTimeEntryService recurringService,
+    ICurrentUserService currentUserService,
+    ILogger<EditModel> logger) : PageModel
 {
-    private readonly IRecurringTimeEntryService _recurringService;
-    private readonly ICurrentUserService _currentUserService;
-    private readonly ILogger<EditModel> _logger;
-
-    public EditModel(
-        IRecurringTimeEntryService recurringService,
-        ICurrentUserService currentUserService,
-        ILogger<EditModel> logger)
-    {
-        _recurringService = recurringService;
-        _currentUserService = currentUserService;
-        _logger = logger;
-    }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -82,8 +72,8 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
-        var userId = _currentUserService.UserId!.Value;
-        var result = await _recurringService.GetByIdAsync(userId, id);
+        var userId = currentUserService.UserId!.Value;
+        var result = await recurringService.GetByIdAsync(userId, id);
 
         if (!result.IsSuccess)
         {
@@ -105,7 +95,7 @@ public class EditModel : PageModel
             EndTime = entry.EndTime,
             Frequency = entry.Pattern.Frequency,
             Interval = entry.Pattern.Interval,
-            DaysOfWeek = entry.Pattern.DaysOfWeek?.ToList() ?? new List<DayOfWeek>(),
+            DaysOfWeek = entry.Pattern.DaysOfWeek?.ToList() ?? [],
             DayOfMonth = entry.Pattern.DayOfMonth,
             StartDate = entry.Pattern.StartDate,
             EndDate = entry.Pattern.EndDate,
@@ -117,12 +107,12 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
-        var userId = _currentUserService.UserId!.Value;
+        var userId = currentUserService.UserId!.Value;
 
         if (!ModelState.IsValid)
         {
             // Reload display data
-            var entryResult = await _recurringService.GetByIdAsync(userId, Input.Id);
+            var entryResult = await recurringService.GetByIdAsync(userId, Input.Id);
             if (entryResult.IsSuccess)
             {
                 ProjectDisplayName = $"{entryResult.Value.ProjectName} ({entryResult.Value.ClientName})";
@@ -165,11 +155,11 @@ public class EditModel : PageModel
                 Input.EndDate,
                 Input.MaxOccurrences));
 
-        var result = await _recurringService.UpdateAsync(userId, Input.Id, dto);
+        var result = await recurringService.UpdateAsync(userId, Input.Id, dto);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Wiederkehrende Zeiterfassung aktualisiert: {Id}", Input.Id);
+            logger.LogInformation("Wiederkehrende Zeiterfassung aktualisiert: {Id}", Input.Id);
             TempData["SuccessMessage"] = "Wiederholung wurde erfolgreich aktualisiert.";
             return RedirectToPage("./Index");
         }
@@ -180,12 +170,12 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnPostDeleteAsync(Guid id)
     {
-        var userId = _currentUserService.UserId!.Value;
-        var result = await _recurringService.DeleteAsync(userId, id);
+        var userId = currentUserService.UserId!.Value;
+        var result = await recurringService.DeleteAsync(userId, id);
 
         if (result.IsSuccess)
         {
-            _logger.LogInformation("Wiederkehrende Zeiterfassung gelöscht: {Id}", id);
+            logger.LogInformation("Wiederkehrende Zeiterfassung gelöscht: {Id}", id);
             TempData["SuccessMessage"] = "Wiederholung wurde gelöscht.";
         }
         else
