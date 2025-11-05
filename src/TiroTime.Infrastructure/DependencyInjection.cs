@@ -30,6 +30,10 @@ public static class DependencyInjection
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<ITimeEntryService, TimeEntryService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IRecurringTimeEntryService, RecurringTimeEntryService>();
+
+        // Background Services
+        services.AddHostedService<RecurringEntryGenerationService>();
 
         return services;
     }

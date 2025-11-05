@@ -29,8 +29,16 @@
                         <li class="nav-item">
                             <a class="nav-link" asp-page="/Index">Dashboard</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-page="/TimeTracking/Index">Zeiterfassung</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="timeTrackingMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Zeiterfassung
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="timeTrackingMenu">
+                                <li><a class="dropdown-item" asp-page="/TimeTracking/Index">Übersicht</a></li>
+                                <li><a class="dropdown-item" asp-page="/TimeTracking/Create">Manueller Eintrag</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-page="/TimeTracking/Recurring/Index">Wiederholungen</a></li>
+                            </ul>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" asp-page="/Clients/Index">Kunden</a>

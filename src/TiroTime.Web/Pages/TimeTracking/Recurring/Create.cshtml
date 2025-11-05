@@ -1,0 +1,175 @@
+@page
+@model TiroTime.Web.Pages.TimeTracking.Recurring.CreateModel
+@{
+    ViewData["Title"] = "Neue Wiederholung erstellen";
+}
+
+<h1>Neue Wiederholung erstellen</h1>
+
+<div class="row">
+    <div class="col-md-8">
+        <form method="post">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+            <div class="mb-3">
+                <label asp-for="Input.ProjectId" class="form-label"></label>
+                <select asp-for="Input.ProjectId" asp-items="Model.ProjectSelectList" class="form-select">
+                    <option value="">-- Projekt wählen --</option>
+                </select>
+                <span asp-validation-for="Input.ProjectId" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Input.Title" class="form-label"></label>
+                <input asp-for="Input.Title" class="form-control" />
+                <span asp-validation-for="Input.Title" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Input.Description" class="form-label"></label>
+                <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label asp-for="Input.StartTime" class="form-label"></label>
+                    <input asp-for="Input.StartTime" type="time" class="form-control" />
+                    <span asp-validation-for="Input.StartTime" class="text-danger"></span>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label asp-for="Input.EndTime" class="form-label"></label>
+                    <input asp-for="Input.EndTime" type="time" class="form-control" />
+                    <span asp-validation-for="Input.EndTime" class="text-danger"></span>
+                </div>
+            </div>
+
+            <hr class="my-4" />
+
+            <h5>Wiederholungsmuster</h5>
+
+            <div class="mb-3">
+                <label asp-for="Input.Frequency" class="form-label"></label>
+                <select asp-for="Input.Frequency" class="form-select" id="frequencySelect">
+                    <option value="@((int)TiroTime.Domain.Enums.RecurrenceType.Daily)">Täglich</option>
+                    <option value="@((int)TiroTime.Domain.Enums.RecurrenceType.Weekly)">Wöchentlich</option>
+                    <option value="@((int)TiroTime.Domain.Enums.RecurrenceType.Monthly)">Monatlich</option>
+                </select>
+                <span asp-validation-for="Input.Frequency" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Input.Interval" class="form-label"></label>
+                <div class="input-group">
+                    <input asp-for="Input.Interval" type="number" class="form-control" min="1" />
+                    <span class="input-group-text" id="intervalLabel">Tag(e)</span>
+                </div>
+                <span asp-validation-for="Input.Interval" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3" id="daysOfWeekGroup" style="display: none;">
+                <label class="form-label">Wochentage</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="Input.DaysOfWeek" value="1" id="monday">
+                    <label class="form-check-label" for="monday">Montag</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="Input.DaysOfWeek" value="2" id="tuesday">
+                    <label class="form-check-label" for="tuesday">Dienstag</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="Input.DaysOfWeek" value="3" id="wednesday">
+                    <label class="form-check-label" for="wednesday">Mittwoch</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="Input.DaysOfWeek" value="4" id="thursday">
+                    <label class="form-check-label" for="thursday">Donnerstag</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="Input.DaysOfWeek" value="5" id="friday">
+                    <label class="form-check-label" for="friday">Freitag</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="Input.DaysOfWeek" value="6" id="saturday">
+                    <label class="form-check-label" for="saturday">Samstag</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="Input.DaysOfWeek" value="0" id="sunday">
+                    <label class="form-check-label" for="sunday">Sonntag</label>
+                </div>
+                <span asp-validation-for="Input.DaysOfWeek" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3" id="dayOfMonthGroup">
+                <label asp-for="Input.DayOfMonth" class="form-label"></label>
+                <input asp-for="Input.DayOfMonth" type="number" class="form-control" min="1" max="31" />
+                <span asp-validation-for="Input.DayOfMonth" class="text-danger"></span>
+            </div>
+
+            <hr class="my-4" />
+
+            <div class="mb-3">
+                <label asp-for="Input.StartDate" class="form-label"></label>
+                <input asp-for="Input.StartDate" type="date" class="form-control" />
+                <span asp-validation-for="Input.StartDate" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Input.EndDate" class="form-label"></label>
+                <input asp-for="Input.EndDate" type="date" class="form-control" />
+                <span asp-validation-for="Input.EndDate" class="text-danger"></span>
+                <small class="form-text text-muted">Optional: Leer lassen für unbegrenzte Wiederholung</small>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Input.MaxOccurrences" class="form-label"></label>
+                <input asp-for="Input.MaxOccurrences" type="number" class="form-control" min="1" />
+                <span asp-validation-for="Input.MaxOccurrences" class="text-danger"></span>
+                <small class="form-text text-muted">Optional: Anstatt Enddatum</small>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">Erstellen</button>
+                <a asp-page="./Index" class="btn btn-secondary">Abbrechen</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const frequencySelect = document.getElementById('frequencySelect');
+            const intervalLabel = document.getElementById('intervalLabel');
+            const daysOfWeekGroup = document.getElementById('daysOfWeekGroup');
+            const dayOfMonthGroup = document.getElementById('dayOfMonthGroup');
+
+            function updateFormFields() {
+                const frequency = parseInt(frequencySelect.value);
+
+                // 0 = Daily, 1 = Weekly, 2 = Monthly
+                switch (frequency) {
+                    case 0: // Daily
+                        intervalLabel.textContent = 'Tag(e)';
+                        daysOfWeekGroup.style.display = 'none';
+                        dayOfMonthGroup.style.display = 'none';
+                        break;
+                    case 1: // Weekly
+                        intervalLabel.textContent = 'Woche(n)';
+                        daysOfWeekGroup.style.display = 'block';
+                        dayOfMonthGroup.style.display = 'none';
+                        break;
+                    case 2: // Monthly
+                        intervalLabel.textContent = 'Monat(e)';
+                        daysOfWeekGroup.style.display = 'none';
+                        dayOfMonthGroup.style.display = 'block';
+                        break;
+                }
+            }
+
+            frequencySelect.addEventListener('change', updateFormFields);
+            updateFormFields(); // Initial
+        });
+    </script>
+}

@@ -1,0 +1,212 @@
+@page
+@model TiroTime.Web.Pages.TimeTracking.Recurring.IndexModel
+@{
+    ViewData["Title"] = "Wiederkehrende Zeiteinträge";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Wiederkehrende Zeiteinträge</h1>
+    <a asp-page="Create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Neue Wiederholung
+    </a>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="mb-3">
+    <form method="get" class="d-inline">
+        <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input" type="checkbox" role="switch" id="showInactive"
+                   name="ShowInactive" value="true" @(Model.ShowInactive ? "checked" : "")
+                   onchange="this.form.submit()">
+            <label class="form-check-label" for="showInactive">
+                Inaktive anzeigen
+            </label>
+        </div>
+    </form>
+</div>
+
+@if (!Model.RecurringEntries.Any())
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i>
+        @if (Model.ShowInactive)
+        {
+            <text>Keine wiederkehrenden Zeiteinträge vorhanden.</text>
+        }
+        else
+        {
+            <text>Keine aktiven wiederkehrenden Zeiteinträge vorhanden.</text>
+        }
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Titel</th>
+                    <th>Projekt</th>
+                    <th>Kunde</th>
+                    <th>Zeit</th>
+                    <th>Muster</th>
+                    <th>Status</th>
+                    <th>Zuletzt generiert</th>
+                    <th style="width: 200px;">Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in Model.RecurringEntries)
+                {
+                    <tr class="@(!entry.IsActive ? "table-secondary" : "")">
+                        <td>
+                            <strong>@entry.Title</strong>
+                            @if (!string.IsNullOrEmpty(entry.Description))
+                            {
+                                <br />
+                                <small class="text-muted">@entry.Description</small>
+                            }
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(entry.ProjectColorCode))
+                            {
+                                <span class="badge me-1" style="background-color: @entry.ProjectColorCode">&nbsp;&nbsp;</span>
+                            }
+                            @entry.ProjectName
+                        </td>
+                        <td>@entry.ClientName</td>
+                        <td>
+                            <small>@entry.StartTime.ToString(@"hh\:mm") - @entry.EndTime.ToString(@"hh\:mm")</small>
+                        </td>
+                        <td>
+                            <small>
+                                @switch (entry.Pattern.Frequency)
+                                {
+                                    case TiroTime.Domain.Enums.RecurrenceType.Daily:
+                                        if (entry.Pattern.Interval == 1)
+                                        {
+                                            <text>Täglich</text>
+                                        }
+                                        else
+                                        {
+                                            <text>Alle @entry.Pattern.Interval Tage</text>
+                                        }
+                                        break;
+                                    case TiroTime.Domain.Enums.RecurrenceType.Weekly:
+                                        if (entry.Pattern.Interval == 1)
+                                        {
+                                            <text>Wöchentlich</text>
+                                        }
+                                        else
+                                        {
+                                            <text>Alle @entry.Pattern.Interval Wochen</text>
+                                        }
+                                        if (entry.Pattern.DaysOfWeek != null)
+                                        {
+                                            <br />
+                                            <text>(@string.Join(", ", entry.Pattern.DaysOfWeek.Select(d => GetDayName(d))))</text>
+                                        }
+                                        break;
+                                    case TiroTime.Domain.Enums.RecurrenceType.Monthly:
+                                        if (entry.Pattern.Interval == 1)
+                                        {
+                                            <text>Monatlich</text>
+                                        }
+                                        else
+                                        {
+                                            <text>Alle @entry.Pattern.Interval Monate</text>
+                                        }
+                                        if (entry.Pattern.DayOfMonth.HasValue)
+                                        {
+                                            <text> am @entry.Pattern.DayOfMonth.</text>
+                                        }
+                                        break;
+                                }
+                                <br />
+                                <text>Ab @entry.Pattern.StartDate.ToString("dd.MM.yyyy")</text>
+                                @if (entry.Pattern.EndDate.HasValue)
+                                {
+                                    <text> bis @entry.Pattern.EndDate.Value.ToString("dd.MM.yyyy")</text>
+                                }
+                                else if (entry.Pattern.MaxOccurrences.HasValue)
+                                {
+                                    <text> (@entry.Pattern.MaxOccurrences x)</text>
+                                }
+                            </small>
+                        </td>
+                        <td>
+                            @if (entry.IsActive)
+                            {
+                                <span class="badge bg-success">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Inaktiv</span>
+                            }
+                        </td>
+                        <td>
+                            @if (entry.LastGeneratedDate.HasValue)
+                            {
+                                <small>@entry.LastGeneratedDate.Value.ToString("dd.MM.yyyy")</small>
+                            }
+                            else
+                            {
+                                <small class="text-muted">Nie</small>
+                            }
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a asp-page="Edit" asp-route-id="@entry.Id" class="btn btn-outline-primary" title="Bearbeiten">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="post" asp-page-handler="ToggleActive" asp-route-id="@entry.Id" asp-route-isActive="@entry.IsActive" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-secondary" title="@(entry.IsActive ? "Deaktivieren" : "Aktivieren")">
+                                        <i class="bi bi-@(entry.IsActive ? "pause" : "play")-circle"></i>
+                                    </button>
+                                </form>
+                                <form method="post" asp-page-handler="Delete" asp-route-id="@entry.Id" class="d-inline"
+                                      onsubmit="return confirm('Sind Sie sicher, dass Sie diese Wiederholung löschen möchten?');">
+                                    <button type="submit" class="btn btn-outline-danger" title="Löschen">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@functions {
+    string GetDayName(DayOfWeek day)
+    {
+        return day switch
+        {
+            DayOfWeek.Monday => "Mo",
+            DayOfWeek.Tuesday => "Di",
+            DayOfWeek.Wednesday => "Mi",
+            DayOfWeek.Thursday => "Do",
+            DayOfWeek.Friday => "Fr",
+            DayOfWeek.Saturday => "Sa",
+            DayOfWeek.Sunday => "So",
+            _ => ""
+        };
+    }
+}
