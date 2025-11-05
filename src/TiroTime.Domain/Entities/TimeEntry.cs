@@ -12,11 +12,13 @@ public class TimeEntry : AggregateRoot
     public DateTime? EndTime { get; private set; }
     public TimeSpan Duration { get; private set; }
     public bool IsRunning { get; private set; }
+    public Guid? RecurringTimeEntryId { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
 
     // Navigation properties
     public Project? Project { get; private set; }
+    public RecurringTimeEntry? RecurringTimeEntry { get; private set; }
 
     private TimeEntry() { }
 
@@ -50,7 +52,8 @@ public class TimeEntry : AggregateRoot
         Guid projectId,
         DateTime startTime,
         DateTime endTime,
-        string? description = null)
+        string? description = null,
+        Guid? recurringTimeEntryId = null)
     {
         if (userId == Guid.Empty)
             throw new DomainException("Benutzer-ID ist erforderlich");
@@ -75,6 +78,7 @@ public class TimeEntry : AggregateRoot
             EndTime = endTime,
             Duration = duration,
             IsRunning = false,
+            RecurringTimeEntryId = recurringTimeEntryId,
             CreatedAt = DateTime.UtcNow
         };
 

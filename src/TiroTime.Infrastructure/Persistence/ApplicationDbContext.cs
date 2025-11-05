@@ -18,6 +18,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
+    public DbSet<RecurringTimeEntry> RecurringTimeEntries => Set<RecurringTimeEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -148,9 +149,53 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
             entity.HasIndex(e => e.ProjectId);
             entity.HasIndex(e => e.StartTime);
             entity.HasIndex(e => new { e.UserId, e.IsRunning });
+            entity.HasIndex(e => e.RecurringTimeEntryId);
 
             entity.Property(e => e.Description).HasMaxLength(2000);
             entity.Property(e => e.IsRunning).IsRequired();
+
+            // Configure relationship with Project
+            entity.HasOne(e => e.Project)
+                .WithMany()
+                .HasForeignKey(e => e.ProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure relationship with RecurringTimeEntry
+            entity.HasOne(e => e.RecurringTimeEntry)
+                .WithMany()
+                .HasForeignKey(e => e.RecurringTimeEntryId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Configure RecurringTimeEntry
+        builder.Entity<RecurringTimeEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.ProjectId);
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => new { e.IsActive, e.LastGeneratedDate })
+                  .HasFilter("[IsActive] = 1");
+
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.IsActive).IsRequired();
+
+            // Configure RecurringPattern value object
+            entity.OwnsOne(e => e.Pattern, pattern =>
+            {
+                pattern.Property(p => p.Frequency).HasColumnName("Pattern_Frequency").IsRequired();
+                pattern.Property(p => p.Interval).HasColumnName("Pattern_Interval").IsRequired();
+                pattern.Property(p => p.DaysOfWeek).HasColumnName("Pattern_DaysOfWeek")
+                       .HasConversion(
+                           v => v == null ? null : string.Join(",", v.Select(d => (int)d)),
+                           v => v == null ? null : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                                    .Select(s => (DayOfWeek)int.Parse(s)).ToArray());
+                pattern.Property(p => p.DayOfMonth).HasColumnName("Pattern_DayOfMonth");
+                pattern.Property(p => p.StartDate).HasColumnName("Pattern_StartDate").IsRequired();
+                pattern.Property(p => p.EndDate).HasColumnName("Pattern_EndDate");
+                pattern.Property(p => p.MaxOccurrences).HasColumnName("Pattern_MaxOccurrences");
+            });
 
             // Configure relationship with Project
             entity.HasOne(e => e.Project)
