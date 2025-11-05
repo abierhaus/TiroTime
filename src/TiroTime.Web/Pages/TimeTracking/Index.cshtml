@@ -182,7 +182,7 @@ else
                                     }
                                 </td>
                                 <td class="text-end">
-                                    <strong class="duration-display">@string.Format("{0:hh\\:mm}", entry.Duration)</strong>
+                                    <strong class="duration-display">@($"{(int)entry.Duration.TotalHours}:{entry.Duration:mm}")</strong>
                                 </td>
                                 <td class="text-end">
                                     @if (!entry.IsRunning)
@@ -220,7 +220,7 @@ else
                     <tfoot>
                         <tr class="table-light">
                             <th colspan="5" class="text-end">Gesamt @Model.MonthName:</th>
-                            <th class="text-end"><strong>@string.Format("{0:hh\\:mm}", Model.MonthTotal)</strong></th>
+                            <th class="text-end"><strong>@($"{(int)Model.MonthTotal.TotalHours}:{Model.MonthTotal:mm}")</strong></th>
                             <th></th>
                         </tr>
                     </tfoot>
