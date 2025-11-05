@@ -117,10 +117,11 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
+        var userId = _currentUserService.UserId!.Value;
+
         if (!ModelState.IsValid)
         {
             // Reload display data
-            var userId = _currentUserService.UserId!.Value;
             var entryResult = await _recurringService.GetByIdAsync(userId, Input.Id);
             if (entryResult.IsSuccess)
             {
@@ -149,8 +150,6 @@ public class EditModel : PageModel
             ModelState.AddModelError(nameof(Input.DayOfMonth), "Bei monatlicher Wiederholung muss ein Tag im Monat angegeben werden.");
             return Page();
         }
-
-        var userId = _currentUserService.UserId!.Value;
 
         var dto = new UpdateRecurringTimeEntryDto(
             Input.Title,
