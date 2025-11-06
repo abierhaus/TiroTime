@@ -21,6 +21,10 @@ services:
       - JwtSettings__Audience=TiroTimeUsers
       - JwtSettings__ExpirationInMinutes=480
       - JwtSettings__RefreshTokenExpirationInDays=7
+      - Mailjet__ApiKey=${MAILJET_API_KEY}
+      - Mailjet__ApiSecret=${MAILJET_API_SECRET}
+      - Mailjet__FromEmail=${MAILJET_FROM_EMAIL}
+      - Mailjet__FromName=TiroTime
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

@@ -58,7 +58,7 @@ public class AutoLoginMiddleware(RequestDelegate next, ILogger<AutoLoginMiddlewa
     private static bool IsLocalhost(string host)
     {
         return host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-            || host.StartsWith("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-            || host.StartsWith("::1", StringComparison.OrdinalIgnoreCase);
+               || host.StartsWith("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+               || host.StartsWith("::1", StringComparison.OrdinalIgnoreCase);
     }
 }
