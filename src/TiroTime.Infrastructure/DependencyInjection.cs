@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<ITimeEntryService, TimeEntryService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IRecurringTimeEntryService, RecurringTimeEntryService>();
+        services.AddScoped<IEmailService, EmailService>();
 
         // Background Services
         services.AddHostedService<RecurringEntryGenerationService>();
