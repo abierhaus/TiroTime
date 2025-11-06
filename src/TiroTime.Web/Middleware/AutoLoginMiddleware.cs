@@ -12,7 +12,13 @@ public class AutoLoginMiddleware(RequestDelegate next, ILogger<AutoLoginMiddlewa
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager)
     {
-       
+        // Only run in Development environment
+        if (!env.IsDevelopment())
+        {
+            await next(context);
+            return;
+        }
+
         // Only run on localhost
         var host = context.Request.Host.Host;
         if (!IsLocalhost(host))

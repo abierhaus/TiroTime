@@ -21,8 +21,8 @@ public static class DatabaseSeeder
             var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
 
             await SeedRolesAsync(roleManager, logger);
-            await SeedAdminUserAsync(userManager, logger);
-            await SeedStandardUserAsync(userManager, configuration, logger);
+            // await SeedAdminUserAsync(userManager, logger);
+            // await SeedStandardUserAsync(userManager, configuration, logger);
         }
         catch (Exception ex)
         {
@@ -33,7 +33,12 @@ public static class DatabaseSeeder
 
     private static async Task SeedRolesAsync(RoleManager<ApplicationRole> roleManager, ILogger logger)
     {
-        string[] roles = { "Admin", "Manager", "User" };
+        string[] roles =
+        {
+            "Admin",
+            "Manager",
+            "User"
+        };
 
         foreach (var roleName in roles)
         {
