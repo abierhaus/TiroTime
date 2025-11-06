@@ -65,9 +65,9 @@ volumes:
 
 **.env Datei (nicht in Git!):**
 ```bash
-MAILJET_API_KEY=1e8e74e8110e090f0cd93cc55cf50ff6
-MAILJET_API_SECRET=532f59e14eeec44a65efbcfe7944c4be
-MAILJET_FROM_EMAIL=alex.bierhaus@abtree.de
+MAILJET_API_KEY=
+MAILJET_API_SECRET=
+MAILJET_FROM_EMAIL=
 JWT_SECRET=ThisIsAVerySecretKeyThatShouldBeAtLeast32CharactersLongForHS256Algorithm
 ```
 
