@@ -41,13 +41,20 @@ riderModule.iml
 
 # Docker Environment Files
 .env
+.env.*
 .env.local
 .env.*.local
+docker-compose.override.yml
 
 # User Secrets (already in user secrets, don't commit)
 **/appsettings.*.json
 !**/appsettings.json
 !**/appsettings.Development.json
+**/secrets.json
+
+# Deployment Secrets
+*.pubxml
+*.PublishSettings
 
 # Database
 *.db
