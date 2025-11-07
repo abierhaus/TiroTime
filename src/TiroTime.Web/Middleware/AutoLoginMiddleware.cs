@@ -19,14 +19,6 @@ public class AutoLoginMiddleware(RequestDelegate next, ILogger<AutoLoginMiddlewa
             return;
         }
 
-        // Only run on localhost
-        var host = context.Request.Host.Host;
-        if (!IsLocalhost(host))
-        {
-            await next(context);
-            return;
-        }
-
         // Skip if user is already authenticated
         if (context.User?.Identity?.IsAuthenticated == true)
         {
