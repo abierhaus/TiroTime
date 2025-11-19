@@ -12,13 +12,7 @@ public class AutoLoginMiddleware(RequestDelegate next, ILogger<AutoLoginMiddlewa
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager)
     {
-        // Only run in Development environment
-        if (!env.IsDevelopment())
-        {
-            await next(context);
-            return;
-        }
-
+        
         // Skip if user is already authenticated
         if (context.User?.Identity?.IsAuthenticated == true)
         {
