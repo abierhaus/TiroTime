@@ -18,7 +18,14 @@ public record ReportSummaryDto(
     decimal TotalAmount,
     DateTime StartDate,
     DateTime EndDate,
+    IEnumerable<ClientSummaryDto> ClientSummaries,
     IEnumerable<ProjectSummaryDto> ProjectSummaries);
+
+public record ClientSummaryDto(
+    string ClientName,
+    int EntryCount,
+    TimeSpan TotalDuration,
+    decimal TotalAmount);
 
 public record ProjectSummaryDto(
     string ProjectName,

@@ -128,7 +128,7 @@
                 </div>
                 <div class="col-md-4">
                     <div class="text-center p-3 bg-light rounded">
-                        <h3 class="text-primary mb-0">@Model.Summary.TotalDuration.ToString(@"hh\:mm")</h3>
+                        <h3 class="text-primary mb-0">@($"{(int)Model.Summary.TotalDuration.TotalHours}:{Model.Summary.TotalDuration:mm}")</h3>
                         <small class="text-muted">Stunden</small>
                     </div>
                 </div>
@@ -139,6 +139,34 @@
                     </div>
                 </div>
             </div>
+
+            @if (Model.Summary.ClientSummaries.Any())
+            {
+                <h6 class="mt-4 mb-3">Nach Kunde</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Kunde</th>
+                                <th class="text-end">Einträge</th>
+                                <th class="text-end">Stunden</th>
+                                <th class="text-end">Betrag</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var client in Model.Summary.ClientSummaries)
+                            {
+                                <tr>
+                                    <td>@client.ClientName</td>
+                                    <td class="text-end">@client.EntryCount</td>
+                                    <td class="text-end">@($"{(int)client.TotalDuration.TotalHours:D2}:{client.TotalDuration:mm}")</td>
+                                    <td class="text-end">@client.TotalAmount.ToString("N2") EUR</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
 
             @if (Model.Summary.ProjectSummaries.Any())
             {
@@ -161,7 +189,7 @@
                                     <td>@project.ProjectName</td>
                                     <td>@project.ClientName</td>
                                     <td class="text-end">@project.EntryCount</td>
-                                    <td class="text-end">@project.TotalDuration.ToString(@"hh\:mm")</td>
+                                    <td class="text-end">@($"{(int)project.TotalDuration.TotalHours:D2}:{project.TotalDuration:mm}")</td>
                                     <td class="text-end">@project.TotalAmount.ToString("N2") @project.Currency</td>
                                 </tr>
                             }

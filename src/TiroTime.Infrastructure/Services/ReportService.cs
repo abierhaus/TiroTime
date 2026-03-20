@@ -87,6 +87,15 @@ public class ReportService : IReportService
 
         var entries = entriesResult.Value.ToList();
 
+        var clientSummaries = entries
+            .GroupBy(e => e.ClientName)
+            .Select(g => new ClientSummaryDto(
+                g.Key,
+                g.Count(),
+                TimeSpan.FromTicks(g.Sum(e => e.Duration.Ticks)),
+                g.Sum(e => e.TotalAmount)))
+            .ToList();
+
         var projectSummaries = entries
             .GroupBy(e => new { e.ProjectName, e.ClientName, e.Currency })
             .Select(g => new ProjectSummaryDto(
@@ -104,6 +113,7 @@ public class ReportService : IReportService
             entries.Sum(e => e.TotalAmount),
             dto.StartDate,
             dto.EndDate,
+            clientSummaries,
             projectSummaries);
 
         return Result.Success(summary);
