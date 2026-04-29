@@ -13,6 +13,7 @@ public interface ITimeEntryService
     // Manual time entry operations
     Task<Result<TimeEntryDto>> CreateManualTimeEntryAsync(Guid userId, CreateManualTimeEntryDto dto, CancellationToken cancellationToken = default);
     Task<Result<TimeEntryDto>> UpdateTimeEntryAsync(Guid userId, UpdateTimeEntryDto dto, CancellationToken cancellationToken = default);
+    Task<Result<TimeEntryDto>> UpdateTimeEntryProjectAsync(Guid userId, Guid timeEntryId, Guid projectId, CancellationToken cancellationToken = default);
     Task<Result> DeleteTimeEntryAsync(Guid userId, Guid timeEntryId, CancellationToken cancellationToken = default);
 
     // Query operations

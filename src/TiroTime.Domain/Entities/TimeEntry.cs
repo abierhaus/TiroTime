@@ -125,6 +125,16 @@ public class TimeEntry : AggregateRoot
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void ChangeProject(Guid projectId)
+    {
+        if (projectId == Guid.Empty)
+            throw new DomainException("Projekt-ID ist erforderlich");
+
+        ProjectId = projectId;
+        Project = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public TimeSpan GetCurrentDuration()
     {
         if (IsRunning)

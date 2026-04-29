@@ -146,6 +146,26 @@ public class IndexModel(
         return new JsonResult(new { success = false, error = result.Error });
     }
 
+    public async Task<IActionResult> OnPostQuickUpdateProjectAsync(Guid id, Guid projectId)
+    {
+        var userId = currentUserService.UserId!.Value;
+
+        var result = await timeEntryService.UpdateTimeEntryProjectAsync(userId, id, projectId);
+
+        if (result.IsSuccess)
+        {
+            return new JsonResult(new
+            {
+                success = true,
+                projectName = result.Value.ProjectName,
+                clientName = result.Value.ClientName,
+                projectColorCode = result.Value.ProjectColorCode
+            });
+        }
+
+        return new JsonResult(new { success = false, error = result.Error });
+    }
+
     public async Task<IActionResult> OnPostDuplicateEntryAsync(Guid id)
     {
         var userId = currentUserService.UserId!.Value;

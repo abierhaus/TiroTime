@@ -172,6 +172,44 @@ public class TimeEntryService : ITimeEntryService
         }
     }
 
+    public async Task<Result<TimeEntryDto>> UpdateTimeEntryProjectAsync(
+        Guid userId,
+        Guid timeEntryId,
+        Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var timeEntry = await _context.TimeEntries
+                .FirstOrDefaultAsync(te => te.Id == timeEntryId && te.UserId == userId, cancellationToken);
+
+            if (timeEntry == null)
+                return Result.Failure<TimeEntryDto>("Zeiterfassung nicht gefunden");
+
+            var project = await _context.Projects
+                .Include(p => p.Client)
+                .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
+
+            if (project == null)
+                return Result.Failure<TimeEntryDto>("Projekt nicht gefunden");
+
+            timeEntry.ChangeProject(projectId);
+            _timeEntryRepository.Update(timeEntry);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            var updated = await _context.TimeEntries
+                .Include(te => te.Project)
+                .ThenInclude(p => p!.Client)
+                .FirstAsync(te => te.Id == timeEntry.Id, cancellationToken);
+
+            return Result.Success(MapToDto(updated));
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure<TimeEntryDto>(ex.Message);
+        }
+    }
+
     public async Task<Result> DeleteTimeEntryAsync(
         Guid userId,
         Guid timeEntryId,

@@ -152,14 +152,42 @@ else
                                     <strong>@localStart.ToString("dd.MM.yyyy")</strong><br/>
                                     <small class="text-muted">@localStart.ToString("dddd", new System.Globalization.CultureInfo("de-DE"))</small>
                                 </td>
-                                <td>
-                                    @if (!string.IsNullOrEmpty(entry.ProjectColorCode))
+                                <td class="project-cell" data-project-id="@entry.ProjectId">
+                                    @if (!entry.IsRunning)
                                     {
-                                        <span class="badge me-2" style="background-color: @entry.ProjectColorCode">&nbsp;&nbsp;&nbsp;</span>
+                                        <div class="project-display editable-project" role="button" tabindex="0">
+                                            @if (!string.IsNullOrEmpty(entry.ProjectColorCode))
+                                            {
+                                                <span class="project-color-badge badge me-2" style="background-color: @entry.ProjectColorCode">&nbsp;&nbsp;&nbsp;</span>
+                                            }
+                                            <strong class="project-name">@entry.ProjectName</strong>
+                                            <br />
+                                            <small class="text-muted client-name">@entry.ClientName</small>
+                                        </div>
+                                        <select class="form-select form-select-sm project-edit d-none">
+                                            @foreach (var project in Model.Projects)
+                                            {
+                                                if (project.Id == entry.ProjectId)
+                                                {
+                                                    <option value="@project.Id" selected>@project.Name (@project.ClientName)</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@project.Id">@project.Name (@project.ClientName)</option>
+                                                }
+                                            }
+                                        </select>
                                     }
-                                    <strong>@entry.ProjectName</strong>
-                                    <br />
-                                    <small class="text-muted">@entry.ClientName</small>
+                                    else
+                                    {
+                                        @if (!string.IsNullOrEmpty(entry.ProjectColorCode))
+                                        {
+                                            <span class="badge me-2" style="background-color: @entry.ProjectColorCode">&nbsp;&nbsp;&nbsp;</span>
+                                        }
+                                        <strong>@entry.ProjectName</strong>
+                                        <br />
+                                        <small class="text-muted">@entry.ClientName</small>
+                                    }
                                 </td>
                                 <td>@(entry.Description ?? "-")</td>
                                 <td class="time-cell">
@@ -315,6 +343,19 @@ else
             background-color: #e9ecef;
         }
         .editable-time:focus {
+            outline: 2px solid #0d6efd;
+            outline-offset: 2px;
+        }
+        .editable-project {
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+        .editable-project:hover {
+            background-color: #e9ecef;
+        }
+        .editable-project:focus {
             outline: 2px solid #0d6efd;
             outline-offset: 2px;
         }
@@ -476,6 +517,118 @@ else
                     }
                 });
             });
+
+            // Project inline editing
+            document.querySelectorAll('.editable-project').forEach(projectDisplay => {
+                projectDisplay.addEventListener('click', function() {
+                    const cell = this.closest('.project-cell');
+                    const select = cell.querySelector('.project-edit');
+
+                    if (select) {
+                        this.classList.add('d-none');
+                        select.classList.remove('d-none');
+                        select.focus();
+                    }
+                });
+            });
+
+            document.querySelectorAll('.project-edit').forEach(select => {
+                let originalValue = select.value;
+
+                select.addEventListener('focus', function() {
+                    originalValue = this.value;
+                });
+
+                select.addEventListener('change', function() {
+                    if (this.value !== originalValue) {
+                        saveProjectChange(this);
+                    } else {
+                        const cell = this.closest('.project-cell');
+                        const display = cell.querySelector('.project-display');
+                        this.classList.add('d-none');
+                        display.classList.remove('d-none');
+                    }
+                });
+
+                select.addEventListener('blur', function() {
+                    if (this.value === originalValue) {
+                        const cell = this.closest('.project-cell');
+                        const display = cell.querySelector('.project-display');
+                        this.classList.add('d-none');
+                        display.classList.remove('d-none');
+                    }
+                });
+
+                select.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        const cell = this.closest('.project-cell');
+                        const display = cell.querySelector('.project-display');
+                        this.value = originalValue;
+                        this.classList.add('d-none');
+                        display.classList.remove('d-none');
+                    }
+                });
+            });
+
+            function saveProjectChange(select) {
+                const row = select.closest('tr');
+                const cell = select.closest('.project-cell');
+                const display = cell.querySelector('.project-display');
+                const entryId = row.dataset.entryId;
+                const newProjectId = select.value;
+                const originalProjectId = cell.dataset.projectId;
+
+                const formData = new FormData();
+                formData.append('id', entryId);
+                formData.append('projectId', newProjectId);
+
+                select.disabled = true;
+
+                fetch('?handler=QuickUpdateProject', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        display.querySelector('.project-name').textContent = data.projectName;
+                        display.querySelector('.client-name').textContent = data.clientName;
+
+                        let badge = display.querySelector('.project-color-badge');
+                        if (data.projectColorCode) {
+                            if (!badge) {
+                                badge = document.createElement('span');
+                                badge.className = 'project-color-badge badge me-2';
+                                badge.innerHTML = '&nbsp;&nbsp;&nbsp;';
+                                display.insertBefore(badge, display.firstChild);
+                            }
+                            badge.style.backgroundColor = data.projectColorCode;
+                        } else if (badge) {
+                            badge.remove();
+                        }
+
+                        cell.dataset.projectId = newProjectId;
+
+                        select.classList.add('d-none');
+                        display.classList.remove('d-none');
+
+                        showToast('Projekt erfolgreich aktualisiert', 'success');
+                    } else {
+                        alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+                        select.value = originalProjectId;
+                    }
+                })
+                .catch(error => {
+                    alert('Fehler beim Speichern: ' + error.message);
+                    select.value = originalProjectId;
+                })
+                .finally(() => {
+                    select.disabled = false;
+                });
+            }
 
             // Duplicate button click
             document.querySelectorAll('.btn-duplicate-entry').forEach(btn => {
