@@ -4,6 +4,7 @@ using TiroTime.Application.Interfaces;
 using TiroTime.Domain.Identity;
 using TiroTime.Infrastructure;
 using TiroTime.Infrastructure.Persistence;
+using TiroTime.Web.Api;
 using TiroTime.Web.Middleware;
 using TiroTime.Web.Services;
 
@@ -81,6 +82,8 @@ app.UseMiddleware<AutoLoginMiddleware>();
 app.UseAuthorization();
 
 app.MapRazorPages();
+app.MapTimeEntriesApi();
+app.MapReportsApi();
 
 // Apply database migrations and seed data
 using (var scope = app.Services.CreateScope())
