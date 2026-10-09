@@ -132,7 +132,7 @@ Das Dockerfile verwendet einen **Multi-Stage Build** für optimale Image-Größe
 4. Baut und publisht das Web-Projekt im Release-Modus
 
 ### Runtime Stage
-1. Verwendet schlankes aspnet:10.0 Runtime-Image, läuft als unprivilegierter Benutzer (`USER $APP_UID`) auf Port 8080
+1. Verwendet schlankes aspnet:10.0 Runtime-Image, läuft als unprivilegierter Benutzer (`USER $APP_UID`) auf Port 8080; publiziert wird nur für `linux-x64` (keine fremden nativen Bibliotheken im Image)
 2. Kopiert nur die kompilierten Binaries und bringt einen `HEALTHCHECK` auf `/health` mit
 3. Enthält keine Build-Tools oder Test-Projekte
 
@@ -175,3 +175,9 @@ Docker wertet den Endpunkt automatisch per `HEALTHCHECK` aus:
 ```bash
 docker inspect --format '{{.State.Health.Status}}' tirotime-app
 ```
+
+## Data-Protection-Keys
+
+Die Schlüssel für die Cookie-Verschlüsselung liegen im benannten Volume `tirotime-dataprotection`
+(`/home/app/.aspnet/DataProtection-Keys`). Dadurch bleiben Anmeldungen auch nach `docker compose up -d`
+mit einem neuen Image gültig. Ohne das Volume würde jeder neue Container neue Schlüssel erzeugen.

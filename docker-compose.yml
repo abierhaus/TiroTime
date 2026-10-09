@@ -12,7 +12,6 @@ services:
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:8080
       # Aus .env (nicht im Repository):
       #   ConnectionStrings__DefaultConnection  (Server=host.docker.internal;Database=TiroTime;...)
       #   ReportsApi__ApiKey                    (Pflicht für /api/reports/*)
@@ -25,10 +24,16 @@ services:
       - Mailjet__ApiSecret=${MAILJET_API_SECRET}
       - Mailjet__FromEmail=${MAILJET_FROM_EMAIL}
       - Mailjet__FromName=TiroTime
+    volumes:
+      # Data-Protection-Keys persistieren, damit Anmelde-Cookies ein Neu-Deployment überleben
+      - tirotime-dataprotection:/home/app/.aspnet/DataProtection-Keys
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - tirotime-network
+
+volumes:
+  tirotime-dataprotection:
 
 networks:
   tirotime-network:

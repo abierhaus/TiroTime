@@ -27,6 +27,7 @@ public class AutoLoginMiddleware(RequestDelegate next, ILogger<AutoLoginMiddlewa
             // TOP 2 reicht, um "genau ein Benutzer" zu erkennen, ohne alle Benutzer zu laden
             var users = await userManager.Users
                 .AsNoTracking()
+                .OrderBy(u => u.Id)
                 .Take(2)
                 .ToListAsync(context.RequestAborted);
 

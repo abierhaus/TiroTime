@@ -4,9 +4,6 @@
 
 services:
   tirotime-web:
-    environment:
-      # Nur HTTP für lokale Entwicklung
-      - ASPNETCORE_URLS=http://+:8080
     ports:
-      # Nur HTTP Port
+      # Nur HTTP Port (Host 5000 -> Container 8080)
       - "5000:8080"

@@ -47,7 +47,11 @@ internal static class ApiHelpers
             return await userManager.FindByEmailAsync(userEmail);
         }
 
-        var users = await dbContext.Users.AsNoTracking().Take(2).ToListAsync(cancellationToken);
+        var users = await dbContext.Users
+            .AsNoTracking()
+            .OrderBy(u => u.Id)
+            .Take(2)
+            .ToListAsync(cancellationToken);
         return users.Count == 1 ? users[0] : null;
     }
 }
