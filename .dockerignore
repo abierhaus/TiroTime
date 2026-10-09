@@ -22,6 +22,10 @@
 **/secrets.dev.yaml
 **/values.dev.yaml
 LICENSE
-README.md
 **/appsettings.Development.json
 **/.idea
+**/TestResults
+tests
+TIROTime
+.github
+*.md

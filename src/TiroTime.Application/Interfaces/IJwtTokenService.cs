@@ -6,5 +6,5 @@ public interface IJwtTokenService
 {
     string GenerateAccessToken(Guid userId, string email, IEnumerable<string> roles);
     string GenerateRefreshToken();
-    ClaimsPrincipal? GetPrincipalFromExpiredToken(string token);
+    Task<ClaimsPrincipal?> GetPrincipalFromExpiredTokenAsync(string token);
 }

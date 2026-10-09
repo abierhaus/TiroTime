@@ -3,19 +3,18 @@ using TiroTime.Application.Interfaces;
 
 namespace TiroTime.Infrastructure.Persistence;
 
-public class UnitOfWork : IUnitOfWork
+/// <summary>
+/// Unit of Work über den (vom DI-Container verwalteten) <see cref="ApplicationDbContext"/>.
+/// Hinweis: explizite Transaktionen sind mit der konfigurierten Retry-Strategie nur innerhalb von
+/// <c>Database.CreateExecutionStrategy().ExecuteAsync(...)</c> zulässig.
+/// </summary>
+public sealed class UnitOfWork(ApplicationDbContext context) : IUnitOfWork
 {
-    private readonly ApplicationDbContext _context;
     private IDbContextTransaction? _currentTransaction;
 
-    public UnitOfWork(ApplicationDbContext context)
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        _context = context;
-    }
-
-    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        return await _context.SaveChangesAsync(cancellationToken);
+        return context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
@@ -25,7 +24,7 @@ public class UnitOfWork : IUnitOfWork
             throw new InvalidOperationException("A transaction is already in progress");
         }
 
-        _currentTransaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        _currentTransaction = await context.Database.BeginTransactionAsync(cancellationToken);
     }
 
     public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)
@@ -37,7 +36,7 @@ public class UnitOfWork : IUnitOfWork
 
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
             await _currentTransaction.CommitAsync(cancellationToken);
         }
         catch
@@ -47,11 +46,7 @@ public class UnitOfWork : IUnitOfWork
         }
         finally
         {
-            if (_currentTransaction != null)
-            {
-                _currentTransaction.Dispose();
-                _currentTransaction = null;
-            }
+            await DisposeTransactionAsync();
         }
     }
 
@@ -68,17 +63,19 @@ public class UnitOfWork : IUnitOfWork
         }
         finally
         {
-            if (_currentTransaction != null)
-            {
-                _currentTransaction.Dispose();
-                _currentTransaction = null;
-            }
+            await DisposeTransactionAsync();
         }
     }
 
-    public void Dispose()
+    private async Task DisposeTransactionAsync()
     {
-        _currentTransaction?.Dispose();
-        _context.Dispose();
+        if (_currentTransaction != null)
+        {
+            await _currentTransaction.DisposeAsync();
+            _currentTransaction = null;
+        }
     }
+
+    // Der DbContext gehört dem DI-Container (gepoolt) und wird dort freigegeben – hier nur die eigene Transaktion.
+    public void Dispose() => _currentTransaction?.Dispose();
 }

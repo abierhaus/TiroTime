@@ -4,34 +4,18 @@ using TiroTime.Application.Common;
 using TiroTime.Application.DTOs;
 using TiroTime.Application.Interfaces;
 using TiroTime.Domain.Entities;
-using TiroTime.Domain.Enums;
 using TiroTime.Domain.ValueObjects;
 using TiroTime.Infrastructure.Persistence;
 
 namespace TiroTime.Infrastructure.Services;
 
-public class RecurringTimeEntryService : IRecurringTimeEntryService
+public class RecurringTimeEntryService(
+    ApplicationDbContext context,
+    IRepository<RecurringTimeEntry> recurringRepository,
+    IRepository<TimeEntry> timeEntryRepository,
+    IUnitOfWork unitOfWork,
+    ILogger<RecurringTimeEntryService> logger) : IRecurringTimeEntryService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IRepository<RecurringTimeEntry> _recurringRepository;
-    private readonly IRepository<TimeEntry> _timeEntryRepository;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ILogger<RecurringTimeEntryService> _logger;
-
-    public RecurringTimeEntryService(
-        ApplicationDbContext context,
-        IRepository<RecurringTimeEntry> recurringRepository,
-        IRepository<TimeEntry> timeEntryRepository,
-        IUnitOfWork unitOfWork,
-        ILogger<RecurringTimeEntryService> logger)
-    {
-        _context = context;
-        _recurringRepository = recurringRepository;
-        _timeEntryRepository = timeEntryRepository;
-        _unitOfWork = unitOfWork;
-        _logger = logger;
-    }
-
     public async Task<Result<RecurringTimeEntryDto>> CreateAsync(
         Guid userId,
         CreateRecurringTimeEntryDto dto,
@@ -39,25 +23,16 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
     {
         try
         {
-            // Verify project exists
-            var project = await _context.Projects
+            var project = await context.Projects
+                .AsNoTracking()
                 .Include(p => p.Client)
                 .FirstOrDefaultAsync(p => p.Id == dto.ProjectId, cancellationToken);
 
             if (project == null)
                 return Result.Failure<RecurringTimeEntryDto>("Projekt nicht gefunden");
 
-            // Create RecurringPattern value object
-            var pattern = RecurringPattern.Create(
-                dto.Pattern.Frequency,
-                dto.Pattern.Interval,
-                dto.Pattern.StartDate,
-                dto.Pattern.DaysOfWeek,
-                dto.Pattern.DayOfMonth,
-                dto.Pattern.EndDate,
-                dto.Pattern.MaxOccurrences);
+            var pattern = CreatePattern(dto.Pattern);
 
-            // Create RecurringTimeEntry entity
             var recurringEntry = RecurringTimeEntry.Create(
                 userId,
                 dto.ProjectId,
@@ -67,24 +42,18 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
                 pattern,
                 dto.Description);
 
-            await _recurringRepository.AddAsync(recurringEntry, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await recurringRepository.AddAsync(recurringEntry, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Reload with project
-            var createdEntry = await _context.RecurringTimeEntries
-                .Include(r => r.Project)
-                .ThenInclude(p => p!.Client)
-                .FirstAsync(r => r.Id == recurringEntry.Id, cancellationToken);
-
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Wiederkehrende Zeiterfassung erstellt: {Title} für Benutzer {UserId}",
                 dto.Title, userId);
 
-            return Result.Success(MapToDto(createdEntry));
+            return Result.Success(MapToDto(recurringEntry, project));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler beim Erstellen der wiederkehrenden Zeiterfassung");
+            logger.LogError(ex, "Fehler beim Erstellen der wiederkehrenden Zeiterfassung");
             return Result.Failure<RecurringTimeEntryDto>(ex.Message);
         }
     }
@@ -94,15 +63,15 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var recurringEntry = await _context.RecurringTimeEntries
+        var recurringEntry = await context.RecurringTimeEntries
+            .AsNoTracking()
             .Include(r => r.Project)
             .ThenInclude(p => p!.Client)
             .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken);
 
-        if (recurringEntry == null)
-            return Result.Failure<RecurringTimeEntryDto>("Wiederkehrende Zeiterfassung nicht gefunden");
-
-        return Result.Success(MapToDto(recurringEntry));
+        return recurringEntry == null
+            ? Result.Failure<RecurringTimeEntryDto>("Wiederkehrende Zeiterfassung nicht gefunden")
+            : Result.Success(MapToDto(recurringEntry));
     }
 
     public async Task<Result<IEnumerable<RecurringTimeEntryDto>>> GetAllAsync(
@@ -112,7 +81,8 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
     {
         try
         {
-            var query = _context.RecurringTimeEntries
+            var query = context.RecurringTimeEntries
+                .AsNoTracking()
                 .Include(r => r.Project)
                 .ThenInclude(p => p!.Client)
                 .Where(r => r.UserId == userId);
@@ -124,11 +94,11 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
                 .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync(cancellationToken);
 
-            return Result.Success(entries.Select(MapToDto));
+            return Result.Success<IEnumerable<RecurringTimeEntryDto>>(entries.Select(MapToDto).ToList());
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler beim Laden der wiederkehrenden Zeiterfassungen");
+            logger.LogError(ex, "Fehler beim Laden der wiederkehrenden Zeiterfassungen");
             return Result.Failure<IEnumerable<RecurringTimeEntryDto>>(ex.Message);
         }
     }
@@ -141,7 +111,7 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
     {
         try
         {
-            var recurringEntry = await _context.RecurringTimeEntries
+            var recurringEntry = await context.RecurringTimeEntries
                 .Include(r => r.Project)
                 .ThenInclude(p => p!.Client)
                 .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken);
@@ -149,17 +119,8 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
             if (recurringEntry == null)
                 return Result.Failure<RecurringTimeEntryDto>("Wiederkehrende Zeiterfassung nicht gefunden");
 
-            // Create updated pattern
-            var pattern = RecurringPattern.Create(
-                dto.Pattern.Frequency,
-                dto.Pattern.Interval,
-                dto.Pattern.StartDate,
-                dto.Pattern.DaysOfWeek,
-                dto.Pattern.DayOfMonth,
-                dto.Pattern.EndDate,
-                dto.Pattern.MaxOccurrences);
+            var pattern = CreatePattern(dto.Pattern);
 
-            // Update entity
             recurringEntry.Update(
                 dto.Title,
                 dto.StartTime,
@@ -167,18 +128,16 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
                 pattern,
                 dto.Description);
 
-            _recurringRepository.Update(recurringEntry);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            recurringRepository.Update(recurringEntry);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation(
-                "Wiederkehrende Zeiterfassung aktualisiert: {Id}",
-                id);
+            logger.LogInformation("Wiederkehrende Zeiterfassung aktualisiert: {Id}", id);
 
             return Result.Success(MapToDto(recurringEntry));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler beim Aktualisieren der wiederkehrenden Zeiterfassung");
+            logger.LogError(ex, "Fehler beim Aktualisieren der wiederkehrenden Zeiterfassung");
             return Result.Failure<RecurringTimeEntryDto>(ex.Message);
         }
     }
@@ -190,84 +149,59 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
     {
         try
         {
-            var recurringEntry = await _context.RecurringTimeEntries
+            var recurringEntry = await context.RecurringTimeEntries
                 .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken);
 
             if (recurringEntry == null)
                 return Result.Failure("Wiederkehrende Zeiterfassung nicht gefunden");
 
-            _recurringRepository.Remove(recurringEntry);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            recurringRepository.Remove(recurringEntry);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation(
-                "Wiederkehrende Zeiterfassung gelöscht: {Id}",
-                id);
+            logger.LogInformation("Wiederkehrende Zeiterfassung gelöscht: {Id}", id);
 
             return Result.Success();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler beim Löschen der wiederkehrenden Zeiterfassung");
+            logger.LogError(ex, "Fehler beim Löschen der wiederkehrenden Zeiterfassung");
             return Result.Failure(ex.Message);
         }
     }
 
-    public async Task<Result> ActivateAsync(
-        Guid userId,
-        Guid id,
-        CancellationToken cancellationToken = default)
+    public Task<Result> ActivateAsync(Guid userId, Guid id, CancellationToken cancellationToken = default) =>
+        SetActiveAsync(userId, id, activate: true, cancellationToken);
+
+    public Task<Result> DeactivateAsync(Guid userId, Guid id, CancellationToken cancellationToken = default) =>
+        SetActiveAsync(userId, id, activate: false, cancellationToken);
+
+    private async Task<Result> SetActiveAsync(Guid userId, Guid id, bool activate, CancellationToken cancellationToken)
     {
+        var action = activate ? "aktiviert" : "deaktiviert";
+
         try
         {
-            var recurringEntry = await _context.RecurringTimeEntries
+            var recurringEntry = await context.RecurringTimeEntries
                 .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken);
 
             if (recurringEntry == null)
                 return Result.Failure("Wiederkehrende Zeiterfassung nicht gefunden");
 
-            recurringEntry.Activate();
-            _recurringRepository.Update(recurringEntry);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            if (activate)
+                recurringEntry.Activate();
+            else
+                recurringEntry.Deactivate();
 
-            _logger.LogInformation(
-                "Wiederkehrende Zeiterfassung aktiviert: {Id}",
-                id);
+            recurringRepository.Update(recurringEntry);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            return Result.Success();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Fehler beim Aktivieren der wiederkehrenden Zeiterfassung");
-            return Result.Failure(ex.Message);
-        }
-    }
-
-    public async Task<Result> DeactivateAsync(
-        Guid userId,
-        Guid id,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var recurringEntry = await _context.RecurringTimeEntries
-                .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken);
-
-            if (recurringEntry == null)
-                return Result.Failure("Wiederkehrende Zeiterfassung nicht gefunden");
-
-            recurringEntry.Deactivate();
-            _recurringRepository.Update(recurringEntry);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation(
-                "Wiederkehrende Zeiterfassung deaktiviert: {Id}",
-                id);
+            logger.LogInformation("Wiederkehrende Zeiterfassung {Action}: {Id}", action, id);
 
             return Result.Success();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler beim Deaktivieren der wiederkehrenden Zeiterfassung");
+            logger.LogError(ex, "Fehler beim Ändern des Aktivierungsstatus der wiederkehrenden Zeiterfassung {Id}", id);
             return Result.Failure(ex.Message);
         }
     }
@@ -279,71 +213,69 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
         try
         {
             var targetDate = forDate.Date;
+            var nextDay = targetDate.AddDays(1);
             var generatedCount = 0;
 
-            // Get all active recurring entries
-            var activeRecurringEntries = await _context.RecurringTimeEntries
-                .Include(r => r.Project)
+            var activeRecurringEntries = await context.RecurringTimeEntries
                 .Where(r => r.IsActive)
                 .ToListAsync(cancellationToken);
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Starte Generierung von Zeiteinträgen für {Date}. {Count} aktive Wiederholungen gefunden.",
                 targetDate, activeRecurringEntries.Count);
 
+            if (activeRecurringEntries.Count == 0)
+                return Result.Success(0);
+
+            // Eine Abfrage für alle bereits generierten Einträge des Tages statt einer pro Wiederholung
+            var alreadyGenerated = (await context.TimeEntries
+                    .AsNoTracking()
+                    .Where(te => te.RecurringTimeEntryId != null &&
+                                 te.StartTime >= targetDate &&
+                                 te.StartTime < nextDay)
+                    .Select(te => te.RecurringTimeEntryId!.Value)
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                .ToHashSet();
+
             foreach (var recurringEntry in activeRecurringEntries)
             {
-                // Check if this recurring entry should generate an entry for this date
                 var occurrences = recurringEntry.GenerateOccurrences(targetDate, targetDate).ToList();
 
-                if (!occurrences.Any())
+                if (occurrences.Count == 0)
                     continue;
 
-                // Check if entry already exists for this date
-                var existingEntry = await _context.TimeEntries
-                    .AnyAsync(te =>
-                        te.RecurringTimeEntryId == recurringEntry.Id &&
-                        te.StartTime.Date == targetDate,
-                        cancellationToken);
-
-                if (existingEntry)
+                if (alreadyGenerated.Contains(recurringEntry.Id))
                 {
-                    _logger.LogDebug(
+                    logger.LogDebug(
                         "Eintrag für {Date} bereits vorhanden (RecurringId: {RecurringId})",
                         targetDate, recurringEntry.Id);
                     continue;
                 }
 
-                // Generate time entry
                 foreach (var (date, startTime, endTime) in occurrences)
                 {
-                    var startDateTime = date.Date + startTime;
-                    var endDateTime = date.Date + endTime;
-
                     var timeEntry = TimeEntry.CreateManual(
                         recurringEntry.UserId,
                         recurringEntry.ProjectId,
-                        startDateTime,
-                        endDateTime,
+                        date.Date + startTime,
+                        date.Date + endTime,
                         recurringEntry.Description,
                         recurringEntry.Id);
 
-                    await _timeEntryRepository.AddAsync(timeEntry, cancellationToken);
+                    await timeEntryRepository.AddAsync(timeEntry, cancellationToken);
                     generatedCount++;
 
-                    _logger.LogDebug(
-                        "Zeiteintrag generiert: {Title} für {Date}",
-                        recurringEntry.Title, date);
+                    logger.LogDebug("Zeiteintrag generiert: {Title} für {Date}", recurringEntry.Title, date);
                 }
 
-                // Update LastGeneratedDate
                 recurringEntry.MarkAsGenerated(targetDate);
-                _recurringRepository.Update(recurringEntry);
+                recurringRepository.Update(recurringEntry);
             }
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Generierung abgeschlossen: {Count} Zeiteinträge für {Date} erstellt",
                 generatedCount, targetDate);
 
@@ -351,7 +283,7 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler bei der Generierung von Zeiteinträgen für {Date}", forDate);
+            logger.LogError(ex, "Fehler bei der Generierung von Zeiteinträgen für {Date}", forDate);
             return Result.Failure<int>(ex.Message);
         }
     }
@@ -365,7 +297,8 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
     {
         try
         {
-            var recurringEntry = await _context.RecurringTimeEntries
+            var recurringEntry = await context.RecurringTimeEntries
+                .AsNoTracking()
                 .Include(r => r.Project)
                 .ThenInclude(p => p!.Client)
                 .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken);
@@ -373,47 +306,61 @@ public class RecurringTimeEntryService : IRecurringTimeEntryService
             if (recurringEntry == null)
                 return Result.Failure<IEnumerable<TimeEntryDto>>("Wiederkehrende Zeiterfassung nicht gefunden");
 
-            var occurrences = recurringEntry.GenerateOccurrences(fromDate.Date, toDate.Date);
+            var previewEntries = recurringEntry
+                .GenerateOccurrences(fromDate.Date, toDate.Date)
+                .Select(occ =>
+                {
+                    var startDateTime = occ.Date + occ.StartTime;
+                    var endDateTime = occ.Date + occ.EndTime;
 
-            var previewEntries = occurrences.Select(occ =>
-            {
-                var startDateTime = occ.Date + occ.StartTime;
-                var endDateTime = occ.Date + occ.EndTime;
-
-                return new TimeEntryDto(
-                    Guid.NewGuid(), // Preview only
-                    recurringEntry.UserId,
-                    recurringEntry.ProjectId,
-                    recurringEntry.Project!.Name,
-                    recurringEntry.Project.Client!.Name,
-                    recurringEntry.Project.ColorCode,
-                    recurringEntry.Description,
-                    startDateTime,
-                    endDateTime,
-                    endDateTime - startDateTime,
-                    false,
-                    DateTime.UtcNow,
-                    null);
-            }).ToList();
+                    return new TimeEntryDto(
+                        Guid.NewGuid(), // Preview only
+                        recurringEntry.UserId,
+                        recurringEntry.ProjectId,
+                        recurringEntry.Project!.Name,
+                        recurringEntry.Project.Client!.Name,
+                        recurringEntry.Project.ColorCode,
+                        recurringEntry.Description,
+                        startDateTime,
+                        endDateTime,
+                        endDateTime - startDateTime,
+                        false,
+                        DateTime.UtcNow,
+                        null);
+                })
+                .ToList();
 
             return Result.Success<IEnumerable<TimeEntryDto>>(previewEntries);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler bei der Vorschau der Vorkommen");
+            logger.LogError(ex, "Fehler bei der Vorschau der Vorkommen");
             return Result.Failure<IEnumerable<TimeEntryDto>>(ex.Message);
         }
     }
 
-    private static RecurringTimeEntryDto MapToDto(RecurringTimeEntry entry)
+    private static RecurringPattern CreatePattern(RecurringPatternDto dto) =>
+        RecurringPattern.Create(
+            dto.Frequency,
+            dto.Interval,
+            dto.StartDate,
+            dto.DaysOfWeek,
+            dto.DayOfMonth,
+            dto.EndDate,
+            dto.MaxOccurrences);
+
+    private static RecurringTimeEntryDto MapToDto(RecurringTimeEntry entry) =>
+        MapToDto(entry, entry.Project);
+
+    private static RecurringTimeEntryDto MapToDto(RecurringTimeEntry entry, Project? project)
     {
         return new RecurringTimeEntryDto(
             entry.Id,
             entry.UserId,
             entry.ProjectId,
-            entry.Project?.Name ?? string.Empty,
-            entry.Project?.Client?.Name ?? string.Empty,
-            entry.Project?.ColorCode,
+            project?.Name ?? string.Empty,
+            project?.Client?.Name ?? string.Empty,
+            project?.ColorCode,
             entry.Title,
             entry.Description,
             entry.StartTime,

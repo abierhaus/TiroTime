@@ -32,11 +32,11 @@ public class CreateModel(
 
         [Required(ErrorMessage = "Startzeit ist erforderlich")]
         [Display(Name = "Startzeit")]
-        public TimeSpan StartTime { get; set; } = new TimeSpan(8, 0, 0);
+        public TimeSpan StartTime { get; set; } = new(8, 0, 0);
 
         [Required(ErrorMessage = "Endzeit ist erforderlich")]
         [Display(Name = "Endzeit")]
-        public TimeSpan EndTime { get; set; } = new TimeSpan(16, 0, 0);
+        public TimeSpan EndTime { get; set; } = new(16, 0, 0);
 
         [StringLength(2000, ErrorMessage = "{0} darf maximal {1} Zeichen lang sein")]
         [Display(Name = "Beschreibung")]

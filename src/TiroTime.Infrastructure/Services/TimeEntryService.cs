@@ -7,22 +7,11 @@ using TiroTime.Infrastructure.Persistence;
 
 namespace TiroTime.Infrastructure.Services;
 
-public class TimeEntryService : ITimeEntryService
+public class TimeEntryService(
+    ApplicationDbContext context,
+    IRepository<TimeEntry> timeEntryRepository,
+    IUnitOfWork unitOfWork) : ITimeEntryService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IRepository<TimeEntry> _timeEntryRepository;
-    private readonly IUnitOfWork _unitOfWork;
-
-    public TimeEntryService(
-        ApplicationDbContext context,
-        IRepository<TimeEntry> timeEntryRepository,
-        IUnitOfWork unitOfWork)
-    {
-        _context = context;
-        _timeEntryRepository = timeEntryRepository;
-        _unitOfWork = unitOfWork;
-    }
-
     public async Task<Result<TimeEntryDto>> StartTimerAsync(
         Guid userId,
         StartTimerDto dto,
@@ -30,15 +19,14 @@ public class TimeEntryService : ITimeEntryService
     {
         try
         {
-            // Check if user already has a running timer
-            var activeTimer = await _context.TimeEntries
-                .FirstOrDefaultAsync(te => te.UserId == userId && te.IsRunning, cancellationToken);
+            var hasActiveTimer = await context.TimeEntries
+                .AnyAsync(te => te.UserId == userId && te.IsRunning, cancellationToken);
 
-            if (activeTimer != null)
+            if (hasActiveTimer)
                 return Result.Failure<TimeEntryDto>("Es läuft bereits ein Timer. Bitte stoppen Sie diesen zuerst.");
 
-            // Verify project exists
-            var project = await _context.Projects
+            var project = await context.Projects
+                .AsNoTracking()
                 .Include(p => p.Client)
                 .FirstOrDefaultAsync(p => p.Id == dto.ProjectId, cancellationToken);
 
@@ -47,16 +35,11 @@ public class TimeEntryService : ITimeEntryService
 
             var timeEntry = TimeEntry.StartTimer(userId, dto.ProjectId, dto.Description);
 
-            await _timeEntryRepository.AddAsync(timeEntry, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await timeEntryRepository.AddAsync(timeEntry, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Reload with project
-            var createdEntry = await _context.TimeEntries
-                .Include(te => te.Project)
-                .ThenInclude(p => p!.Client)
-                .FirstAsync(te => te.Id == timeEntry.Id, cancellationToken);
-
-            return Result.Success(MapToDto(createdEntry));
+            // Projekt und Kunde sind bereits geladen – kein erneutes Nachladen nötig
+            return Result.Success(MapToDto(timeEntry, project));
         }
         catch (Exception ex)
         {
@@ -71,7 +54,7 @@ public class TimeEntryService : ITimeEntryService
     {
         try
         {
-            var timeEntry = await _context.TimeEntries
+            var timeEntry = await context.TimeEntries
                 .Include(te => te.Project)
                 .ThenInclude(p => p!.Client)
                 .FirstOrDefaultAsync(te => te.Id == timeEntryId && te.UserId == userId, cancellationToken);
@@ -80,8 +63,8 @@ public class TimeEntryService : ITimeEntryService
                 return Result.Failure<TimeEntryDto>("Zeiterfassung nicht gefunden");
 
             timeEntry.StopTimer();
-            _timeEntryRepository.Update(timeEntry);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            timeEntryRepository.Update(timeEntry);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result.Success(MapToDto(timeEntry));
         }
@@ -95,15 +78,15 @@ public class TimeEntryService : ITimeEntryService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var activeTimer = await _context.TimeEntries
+        var activeTimer = await context.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Project)
             .ThenInclude(p => p!.Client)
             .FirstOrDefaultAsync(te => te.UserId == userId && te.IsRunning, cancellationToken);
 
-        if (activeTimer == null)
-            return Result.Failure<TimeEntryDto>("Kein aktiver Timer gefunden");
-
-        return Result.Success(MapToDto(activeTimer));
+        return activeTimer == null
+            ? Result.Failure<TimeEntryDto>("Kein aktiver Timer gefunden")
+            : Result.Success(MapToDto(activeTimer));
     }
 
     public async Task<Result<TimeEntryDto>> CreateManualTimeEntryAsync(
@@ -113,8 +96,8 @@ public class TimeEntryService : ITimeEntryService
     {
         try
         {
-            // Verify project exists
-            var project = await _context.Projects
+            var project = await context.Projects
+                .AsNoTracking()
                 .Include(p => p.Client)
                 .FirstOrDefaultAsync(p => p.Id == dto.ProjectId, cancellationToken);
 
@@ -128,16 +111,10 @@ public class TimeEntryService : ITimeEntryService
                 dto.EndTime,
                 dto.Description);
 
-            await _timeEntryRepository.AddAsync(timeEntry, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await timeEntryRepository.AddAsync(timeEntry, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Reload with project
-            var createdEntry = await _context.TimeEntries
-                .Include(te => te.Project)
-                .ThenInclude(p => p!.Client)
-                .FirstAsync(te => te.Id == timeEntry.Id, cancellationToken);
-
-            return Result.Success(MapToDto(createdEntry));
+            return Result.Success(MapToDto(timeEntry, project));
         }
         catch (Exception ex)
         {
@@ -152,7 +129,7 @@ public class TimeEntryService : ITimeEntryService
     {
         try
         {
-            var timeEntry = await _context.TimeEntries
+            var timeEntry = await context.TimeEntries
                 .Include(te => te.Project)
                 .ThenInclude(p => p!.Client)
                 .FirstOrDefaultAsync(te => te.Id == dto.Id && te.UserId == userId, cancellationToken);
@@ -161,8 +138,8 @@ public class TimeEntryService : ITimeEntryService
                 return Result.Failure<TimeEntryDto>("Zeiterfassung nicht gefunden");
 
             timeEntry.Update(dto.StartTime, dto.EndTime, dto.Description);
-            _timeEntryRepository.Update(timeEntry);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            timeEntryRepository.Update(timeEntry);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result.Success(MapToDto(timeEntry));
         }
@@ -180,13 +157,14 @@ public class TimeEntryService : ITimeEntryService
     {
         try
         {
-            var timeEntry = await _context.TimeEntries
+            var timeEntry = await context.TimeEntries
                 .FirstOrDefaultAsync(te => te.Id == timeEntryId && te.UserId == userId, cancellationToken);
 
             if (timeEntry == null)
                 return Result.Failure<TimeEntryDto>("Zeiterfassung nicht gefunden");
 
-            var project = await _context.Projects
+            var project = await context.Projects
+                .AsNoTracking()
                 .Include(p => p.Client)
                 .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
 
@@ -194,15 +172,10 @@ public class TimeEntryService : ITimeEntryService
                 return Result.Failure<TimeEntryDto>("Projekt nicht gefunden");
 
             timeEntry.ChangeProject(projectId);
-            _timeEntryRepository.Update(timeEntry);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            timeEntryRepository.Update(timeEntry);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            var updated = await _context.TimeEntries
-                .Include(te => te.Project)
-                .ThenInclude(p => p!.Client)
-                .FirstAsync(te => te.Id == timeEntry.Id, cancellationToken);
-
-            return Result.Success(MapToDto(updated));
+            return Result.Success(MapToDto(timeEntry, project));
         }
         catch (Exception ex)
         {
@@ -215,7 +188,7 @@ public class TimeEntryService : ITimeEntryService
         Guid timeEntryId,
         CancellationToken cancellationToken = default)
     {
-        var timeEntry = await _timeEntryRepository
+        var timeEntry = await timeEntryRepository
             .FirstOrDefaultAsync(te => te.Id == timeEntryId && te.UserId == userId, cancellationToken);
 
         if (timeEntry == null)
@@ -224,8 +197,8 @@ public class TimeEntryService : ITimeEntryService
         if (timeEntry.IsRunning)
             return Result.Failure("Laufende Zeiterfassung kann nicht gelöscht werden. Bitte stoppen Sie diese zuerst.");
 
-        _timeEntryRepository.Remove(timeEntry);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        timeEntryRepository.Remove(timeEntry);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }
@@ -235,15 +208,15 @@ public class TimeEntryService : ITimeEntryService
         Guid timeEntryId,
         CancellationToken cancellationToken = default)
     {
-        var timeEntry = await _context.TimeEntries
+        var timeEntry = await context.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Project)
             .ThenInclude(p => p!.Client)
             .FirstOrDefaultAsync(te => te.Id == timeEntryId && te.UserId == userId, cancellationToken);
 
-        if (timeEntry == null)
-            return Result.Failure<TimeEntryDto>("Zeiterfassung nicht gefunden");
-
-        return Result.Success(MapToDto(timeEntry));
+        return timeEntry == null
+            ? Result.Failure<TimeEntryDto>("Zeiterfassung nicht gefunden")
+            : Result.Success(MapToDto(timeEntry));
     }
 
     public async Task<Result<IEnumerable<TimeEntryDto>>> GetTimeEntriesByDateRangeAsync(
@@ -252,17 +225,18 @@ public class TimeEntryService : ITimeEntryService
         DateTime endDate,
         CancellationToken cancellationToken = default)
     {
-        var timeEntries = await _context.TimeEntries
+        // endDate ist exklusiv (z. B. erster Tag des Folgemonats), damit Einträge nicht in zwei Zeiträumen auftauchen
+        var timeEntries = await context.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Project)
             .ThenInclude(p => p!.Client)
             .Where(te => te.UserId == userId &&
                         te.StartTime >= startDate &&
-                        te.StartTime <= endDate)
+                        te.StartTime < endDate)
             .OrderByDescending(te => te.StartTime)
             .ToListAsync(cancellationToken);
 
-        var dtos = timeEntries.Select(MapToDto);
-        return Result.Success(dtos);
+        return Result.Success<IEnumerable<TimeEntryDto>>(timeEntries.Select(MapToDto).ToList());
     }
 
     public async Task<Result<IEnumerable<TimeEntryDto>>> GetTimeEntriesByProjectAsync(
@@ -270,15 +244,15 @@ public class TimeEntryService : ITimeEntryService
         Guid projectId,
         CancellationToken cancellationToken = default)
     {
-        var timeEntries = await _context.TimeEntries
+        var timeEntries = await context.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Project)
             .ThenInclude(p => p!.Client)
             .Where(te => te.UserId == userId && te.ProjectId == projectId)
             .OrderByDescending(te => te.StartTime)
             .ToListAsync(cancellationToken);
 
-        var dtos = timeEntries.Select(MapToDto);
-        return Result.Success(dtos);
+        return Result.Success<IEnumerable<TimeEntryDto>>(timeEntries.Select(MapToDto).ToList());
     }
 
     public async Task<Result<IEnumerable<TimeEntrySummaryDto>>> GetTimeEntriesSummaryByDateRangeAsync(
@@ -287,7 +261,8 @@ public class TimeEntryService : ITimeEntryService
         DateTime endDate,
         CancellationToken cancellationToken = default)
     {
-        var timeEntries = await _context.TimeEntries
+        var timeEntries = await context.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Project)
             .ThenInclude(p => p!.Client)
             .Where(te => te.UserId == userId &&
@@ -303,11 +278,11 @@ public class TimeEntryService : ITimeEntryService
                 g.Key,
                 TimeSpan.FromTicks(g.Sum(te => te.Duration.Ticks)),
                 g.Count(),
-                g.Select(MapToDto).OrderByDescending(te => te.StartTime)))
+                g.Select(MapToDto).OrderByDescending(te => te.StartTime).ToList()))
             .OrderByDescending(s => s.Date)
-            .AsEnumerable();
+            .ToList();
 
-        return Result.Success(summaries);
+        return Result.Success<IEnumerable<TimeEntrySummaryDto>>(summaries);
     }
 
     public async Task<Result<TimeEntryStatisticsDto>> GetStatisticsAsync(
@@ -318,16 +293,20 @@ public class TimeEntryService : ITimeEntryService
         var todayStart = now.Date;
         var weekStart = now.Date.AddDays(-(int)now.DayOfWeek + (int)DayOfWeek.Monday);
         var monthStart = new DateTime(now.Year, now.Month, 1);
+        var periodStart = weekStart < monthStart ? weekStart : monthStart;
 
-        var entries = await _context.TimeEntries
+        // Nur die beiden benötigten Spalten laden statt kompletter Entities
+        var entries = await context.TimeEntries
+            .AsNoTracking()
             .Where(te => te.UserId == userId &&
                         !te.IsRunning &&
-                        te.StartTime >= monthStart)
+                        te.StartTime >= periodStart)
+            .Select(te => new { te.StartTime, te.Duration })
             .ToListAsync(cancellationToken);
 
         var todayEntries = entries.Where(te => te.StartTime >= todayStart).ToList();
         var weekEntries = entries.Where(te => te.StartTime >= weekStart).ToList();
-        var monthEntries = entries;
+        var monthEntries = entries.Where(te => te.StartTime >= monthStart).ToList();
 
         var statistics = new TimeEntryStatisticsDto(
             TimeSpan.FromTicks(todayEntries.Sum(te => te.Duration.Ticks)),
@@ -340,15 +319,18 @@ public class TimeEntryService : ITimeEntryService
         return Result.Success(statistics);
     }
 
-    private static TimeEntryDto MapToDto(TimeEntry timeEntry)
+    private static TimeEntryDto MapToDto(TimeEntry timeEntry) =>
+        MapToDto(timeEntry, timeEntry.Project);
+
+    private static TimeEntryDto MapToDto(TimeEntry timeEntry, Project? project)
     {
         return new TimeEntryDto(
             timeEntry.Id,
             timeEntry.UserId,
             timeEntry.ProjectId,
-            timeEntry.Project?.Name ?? "Unknown",
-            timeEntry.Project?.Client?.Name ?? "Unknown",
-            timeEntry.Project?.ColorCode,
+            project?.Name ?? "Unknown",
+            project?.Client?.Name ?? "Unknown",
+            project?.ColorCode,
             timeEntry.Description,
             timeEntry.StartTime,
             timeEntry.EndTime,

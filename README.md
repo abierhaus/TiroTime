@@ -3,9 +3,9 @@
 > **Professional time tracking system built with ASP.NET Core and Domain-Driven Design**
 
 [![CI](https://github.com/abierhaus/TiroTime/actions/workflows/ci.yml/badge.svg)](https://github.com/abierhaus/TiroTime/actions/workflows/ci.yml)
-[![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-9.0-512BD4)](https://dotnet.microsoft.com/apps/aspnet)
-[![Entity Framework](https://img.shields.io/badge/Entity%20Framework-9.0-512BD4)](https://docs.microsoft.com/ef/)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-10.0-512BD4)](https://dotnet.microsoft.com/apps/aspnet)
+[![Entity Framework](https://img.shields.io/badge/Entity%20Framework-10.0-512BD4)](https://docs.microsoft.com/ef/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -142,7 +142,7 @@ Brief description of the feature
 ## 🚀 Getting Started
 
 ### Prerequisites
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (Version siehe `global.json`)
 - [SQL Server](https://www.microsoft.com/sql-server) (or Docker)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (optional)
 
@@ -162,7 +162,7 @@ Brief description of the feature
 
 3. **Start with Docker Compose**
    ```bash
-   docker-compose up -d --build
+   docker compose up -d --build
    ```
 
 4. **Access the application**
@@ -216,11 +216,13 @@ dotnet user-secrets set "SeedUsers:StandardUser:Password" "SecurePassword123!" -
 ## 🛠️ Technology Stack
 
 ### Backend
-- **Framework**: ASP.NET Core 9.0
-- **ORM**: Entity Framework Core 9.0
+- **Framework**: ASP.NET Core 10.0 (Razor Pages + Minimal APIs)
+- **ORM**: Entity Framework Core 10.0 (DbContext-Pooling, Retry-Strategie)
 - **Database**: SQL Server
 - **Authentication**: ASP.NET Core Identity + JWT
 - **Patterns**: DDD, Clean Architecture, Repository, Unit of Work
+- **Build**: Central Package Management (`Directory.Packages.props`), gemeinsame Properties in `Directory.Build.props`, SDK-Pinning per `global.json`
+- **Tests**: xUnit v3
 
 ### Frontend
 - **UI Framework**: Razor Pages

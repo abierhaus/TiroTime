@@ -31,13 +31,13 @@ Docker unterstützt Umgebungsvariablen mit der Syntax `SectionName__SubSection__
 
 **docker-compose.yml:**
 ```yaml
-version: '3.8'
+
 
 services:
   tirotime-web:
     image: tirotime-web:latest
     ports:
-      - "8080:8080"
+      - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Server=db;Database=TiroTime;User Id=usrTiroTime;Password=SecurePassword;TrustServerCertificate=True
@@ -73,27 +73,27 @@ JWT_SECRET=ThisIsAVerySecretKeyThatShouldBeAtLeast32CharactersLongForHS256Algori
 
 **Starten:**
 ```bash
-docker-compose --env-file .env up -d
+docker compose up -d
 ```
 
 ### Option 2: Docker Secrets (für Docker Swarm)
 
 **Secrets erstellen:**
 ```bash
-echo "1e8e74e8110e090f0cd93cc55cf50ff6" | docker secret create mailjet_api_key -
-echo "532f59e14eeec44a65efbcfe7944c4be" | docker secret create mailjet_api_secret -
-echo "alex.bierhaus@abtree.de" | docker secret create mailjet_from_email -
+echo "<MAILJET_API_KEY>" | docker secret create mailjet_api_key -
+echo "<MAILJET_API_SECRET>" | docker secret create mailjet_api_secret -
+echo "<MAILJET_FROM_EMAIL>" | docker secret create mailjet_from_email -
 ```
 
 **docker-stack.yml:**
 ```yaml
-version: '3.8'
+
 
 services:
   tirotime-web:
     image: tirotime-web:latest
     ports:
-      - "8080:8080"
+      - "5000:8080"
     secrets:
       - mailjet_api_key
       - mailjet_api_secret
@@ -124,9 +124,9 @@ docker stack deploy -c docker-stack.yml tirotime
 **Secrets erstellen:**
 ```bash
 kubectl create secret generic tirotime-secrets \
-  --from-literal=mailjet-api-key=1e8e74e8110e090f0cd93cc55cf50ff6 \
-  --from-literal=mailjet-api-secret=532f59e14eeec44a65efbcfe7944c4be \
-  --from-literal=mailjet-from-email=alex.bierhaus@abtree.de
+  --from-literal=mailjet-api-key=<MAILJET_API_KEY> \
+  --from-literal=mailjet-api-secret=<MAILJET_API_SECRET> \
+  --from-literal=mailjet-from-email=<MAILJET_FROM_EMAIL>
 ```
 
 **deployment.yaml:**
@@ -177,18 +177,18 @@ spec:
 **Konfiguration über Portal:**
 1. Azure Portal → App Service → Configuration → Application Settings
 2. Neue Einstellungen hinzufügen:
-   - `Mailjet__ApiKey` = `1e8e74e8110e090f0cd93cc55cf50ff6`
-   - `Mailjet__ApiSecret` = `532f59e14eeec44a65efbcfe7944c4be`
-   - `Mailjet__FromEmail` = `alex.bierhaus@abtree.de`
+   - `Mailjet__ApiKey` = `<MAILJET_API_KEY>`
+   - `Mailjet__ApiSecret` = `<MAILJET_API_SECRET>`
+   - `Mailjet__FromEmail` = `<MAILJET_FROM_EMAIL>`
    - `Mailjet__FromName` = `TiroTime`
 
 **Oder via Azure CLI:**
 ```bash
 az webapp config appsettings set --name tirotime-web --resource-group TiroTime \
   --settings \
-  "Mailjet__ApiKey=1e8e74e8110e090f0cd93cc55cf50ff6" \
-  "Mailjet__ApiSecret=532f59e14eeec44a65efbcfe7944c4be" \
-  "Mailjet__FromEmail=alex.bierhaus@abtree.de" \
+  "Mailjet__ApiKey=<MAILJET_API_KEY>" \
+  "Mailjet__ApiSecret=<MAILJET_API_SECRET>" \
+  "Mailjet__FromEmail=<MAILJET_FROM_EMAIL>" \
   "Mailjet__FromName=TiroTime"
 ```
 
@@ -223,9 +223,9 @@ RestartSec=10
 SyslogIdentifier=tirotime
 User=www-data
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment=Mailjet__ApiKey=1e8e74e8110e090f0cd93cc55cf50ff6
-Environment=Mailjet__ApiSecret=532f59e14eeec44a65efbcfe7944c4be
-Environment=Mailjet__FromEmail=alex.bierhaus@abtree.de
+Environment=Mailjet__ApiKey=<MAILJET_API_KEY>
+Environment=Mailjet__ApiSecret=<MAILJET_API_SECRET>
+Environment=Mailjet__FromEmail=<MAILJET_FROM_EMAIL>
 Environment=Mailjet__FromName=TiroTime
 
 [Install]
@@ -240,9 +240,9 @@ EnvironmentFile=/etc/tirotime/secrets.env
 
 **/etc/tirotime/secrets.env:**
 ```bash
-Mailjet__ApiKey=1e8e74e8110e090f0cd93cc55cf50ff6
-Mailjet__ApiSecret=532f59e14eeec44a65efbcfe7944c4be
-Mailjet__FromEmail=alex.bierhaus@abtree.de
+Mailjet__ApiKey=<MAILJET_API_KEY>
+Mailjet__ApiSecret=<MAILJET_API_SECRET>
+Mailjet__FromEmail=<MAILJET_FROM_EMAIL>
 Mailjet__FromName=TiroTime
 ```
 

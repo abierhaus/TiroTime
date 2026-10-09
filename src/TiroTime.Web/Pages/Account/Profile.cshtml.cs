@@ -44,7 +44,7 @@ public class ProfileModel(
         var user = await userManager.GetUserAsync(User);
         if (user == null)
         {
-            return NotFound($"Benutzer konnte nicht geladen werden.");
+            return NotFound("Benutzer konnte nicht geladen werden.");
         }
 
         Email = user.Email;
@@ -66,7 +66,7 @@ public class ProfileModel(
         var currentUser = await userManager.GetUserAsync(User);
         if (currentUser == null)
         {
-            return NotFound($"Benutzer konnte nicht geladen werden.");
+            return NotFound("Benutzer konnte nicht geladen werden.");
         }
 
         Email = currentUser.Email;

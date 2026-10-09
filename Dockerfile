@@ -1,41 +1,45 @@
-# Build Stage
+# syntax=docker/dockerfile:1
+
+# ---------- Build Stage ----------
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy solution file
-COPY TiroTime.sln .
+# Build-Konfiguration (SDK-Version, gemeinsame Properties, zentrale Paketversionen)
+COPY global.json Directory.Build.props Directory.Packages.props ./
 
-# Copy project files (including test projects for restore)
+# Projektdateien zuerst kopieren, damit der Restore-Layer gecacht wird
 COPY src/TiroTime.Domain/TiroTime.Domain.csproj src/TiroTime.Domain/
 COPY src/TiroTime.Application/TiroTime.Application.csproj src/TiroTime.Application/
 COPY src/TiroTime.Infrastructure/TiroTime.Infrastructure.csproj src/TiroTime.Infrastructure/
 COPY src/TiroTime.Web/TiroTime.Web.csproj src/TiroTime.Web/
-COPY tests/TiroTime.Domain.Tests/TiroTime.Domain.Tests.csproj tests/TiroTime.Domain.Tests/
-COPY tests/TiroTime.Application.Tests/TiroTime.Application.Tests.csproj tests/TiroTime.Application.Tests/
 
-# Restore dependencies
-RUN dotnet restore src/TiroTime.Web/TiroTime.Web.csproj
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
+    dotnet restore src/TiroTime.Web/TiroTime.Web.csproj
 
-# Copy all source files (excluding tests)
+# Quellen kopieren (nur src/, keine Tests) und veröffentlichen
 COPY src/ src/
-
-# Build and publish (only Web project, no tests)
 WORKDIR /src/src/TiroTime.Web
-RUN dotnet publish -c Release -o /app/publish --no-restore
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
+    dotnet publish -c Release -o /app/publish --no-restore -p:UseAppHost=false
 
-# Runtime Stage
+# ---------- Runtime Stage ----------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Copy published files
+# curl nur für den Container-HEALTHCHECK
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish .
 
-# Expose ports
-EXPOSE 80
-EXPOSE 443
+# Unprivilegierter Benutzer (im Basis-Image vorhanden) und unprivilegierter Port
+ENV ASPNETCORE_ENVIRONMENT=Production \
+    ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+USER $APP_UID
 
-# Set environment to Production
-ENV ASPNETCORE_ENVIRONMENT=Production
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://localhost:8080/health || exit 1
 
-# Start the application
 ENTRYPOINT ["dotnet", "TiroTime.Web.dll"]

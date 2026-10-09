@@ -272,13 +272,13 @@ public class RecurringPattern : ValueObject
 
         var dayNames = DaysOfWeek.Select(d => d switch
         {
-            System.DayOfWeek.Monday => "Mo",
-            System.DayOfWeek.Tuesday => "Di",
-            System.DayOfWeek.Wednesday => "Mi",
-            System.DayOfWeek.Thursday => "Do",
-            System.DayOfWeek.Friday => "Fr",
-            System.DayOfWeek.Saturday => "Sa",
-            System.DayOfWeek.Sunday => "So",
+            DayOfWeek.Monday => "Mo",
+            DayOfWeek.Tuesday => "Di",
+            DayOfWeek.Wednesday => "Mi",
+            DayOfWeek.Thursday => "Do",
+            DayOfWeek.Friday => "Fr",
+            DayOfWeek.Saturday => "Sa",
+            DayOfWeek.Sunday => "So",
             _ => ""
         });
 

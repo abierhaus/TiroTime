@@ -34,10 +34,9 @@ public static class TimeEntriesApi
     {
         // Optional: wenn TimeLoggingApi:ApiKey konfiguriert ist, muss der Header X-Api-Key passen
         var configuredApiKey = configuration["TimeLoggingApi:ApiKey"];
-        if (!string.IsNullOrEmpty(configuredApiKey) &&
-            httpContext.Request.Headers["X-Api-Key"] != configuredApiKey)
+        if (!string.IsNullOrEmpty(configuredApiKey) && !ApiHelpers.HasValidApiKey(httpContext.Request, configuredApiKey))
         {
-            return Results.Json(new { error = "Ungültiger API-Key" }, statusCode: StatusCodes.Status401Unauthorized);
+            return ApiHelpers.Unauthorized();
         }
 
         if (string.IsNullOrWhiteSpace(request.Client) || string.IsNullOrWhiteSpace(request.Project))
@@ -51,18 +50,17 @@ public static class TimeEntriesApi
         }
 
         var project = await dbContext.Projects
-            .Include(p => p.Client)
-            .FirstOrDefaultAsync(p =>
-                p.Name == request.Project &&
-                p.Client != null &&
-                p.Client.Name == request.Client,
-                cancellationToken);
+            .AsNoTracking()
+            .Where(p => p.Name == request.Project && p.Client!.Name == request.Client)
+            .Select(p => new { p.Id })
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (project is null)
         {
             var available = await dbContext.Projects
-                .Include(p => p.Client)
+                .AsNoTracking()
                 .Where(p => p.IsActive)
+                .OrderBy(p => p.Client!.Name).ThenBy(p => p.Name)
                 .Select(p => new { client = p.Client!.Name, project = p.Name })
                 .ToListAsync(cancellationToken);
 
@@ -73,7 +71,7 @@ public static class TimeEntriesApi
             });
         }
 
-        var user = await ResolveUserAsync(request.UserEmail, dbContext, userManager, cancellationToken);
+        var user = await ApiHelpers.ResolveUserAsync(request.UserEmail, dbContext, userManager, cancellationToken);
         if (user is null)
         {
             return Results.BadRequest(new
@@ -101,7 +99,7 @@ public static class TimeEntriesApi
             return Results.BadRequest(new { error = result.Error });
         }
 
-        var entry = result.Value!;
+        var entry = result.Value;
         return Results.Created($"/api/time-entries/{entry.Id}", new
         {
             id = entry.Id,
@@ -113,21 +111,5 @@ public static class TimeEntriesApi
             duration = entry.Duration.ToString(@"hh\:mm"),
             description = entry.Description
         });
-    }
-
-    private static async Task<ApplicationUser?> ResolveUserAsync(
-        string? userEmail,
-        ApplicationDbContext dbContext,
-        UserManager<ApplicationUser> userManager,
-        CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(userEmail))
-        {
-            return await userManager.FindByEmailAsync(userEmail);
-        }
-
-        // Wie AutoLoginMiddleware: bei genau einem Benutzer ist die Zuordnung eindeutig
-        var users = await dbContext.Users.Take(2).ToListAsync(cancellationToken);
-        return users.Count == 1 ? users[0] : null;
     }
 }

@@ -62,7 +62,7 @@ public class IndexModel(
 
         if (entriesResult.IsSuccess)
         {
-            MonthEntries = entriesResult.Value.Where(e => !e.IsRunning).OrderByDescending(e => e.StartTime);
+            MonthEntries = entriesResult.Value.Where(e => !e.IsRunning).OrderByDescending(e => e.StartTime).ToList();
             MonthTotal = TimeSpan.FromTicks(MonthEntries.Sum(e => e.Duration.Ticks));
 
             // Validate entries using the validation service

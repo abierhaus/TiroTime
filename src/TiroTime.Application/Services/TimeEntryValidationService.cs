@@ -1,3 +1,4 @@
+using System.Globalization;
 using TiroTime.Application.DTOs;
 using TiroTime.Application.Interfaces;
 
@@ -5,7 +6,8 @@ namespace TiroTime.Application.Services;
 
 public class TimeEntryValidationService : ITimeEntryValidationService
 {
-    private readonly List<string> _validationExclusionKeywords = ["Pauschal"];
+    private static readonly CultureInfo German = CultureInfo.GetCultureInfo("de-DE");
+    private static readonly string[] ValidationExclusionKeywords = ["Pauschal"];
 
     public IEnumerable<TimeEntryValidationWarning> ValidateTimeEntries(IEnumerable<TimeEntryDto> entries)
     {
@@ -18,7 +20,7 @@ public class TimeEntryValidationService : ITimeEntryValidationService
                 return true; // No description, include in validation
 
             // Check if description contains any exclusion keyword (case-insensitive)
-            return !_validationExclusionKeywords.Any(keyword =>
+            return !ValidationExclusionKeywords.Any(keyword =>
                 e.Description.Contains(keyword, StringComparison.OrdinalIgnoreCase));
         }).ToList();
 
@@ -42,11 +44,11 @@ public class TimeEntryValidationService : ITimeEntryValidationService
         return warnings;
     }
 
-    private IEnumerable<TimeEntryValidationWarning> ValidateWeekendWork(DateTime date, List<TimeEntryDto> dayEntries)
+    private static IEnumerable<TimeEntryValidationWarning> ValidateWeekendWork(DateTime date, List<TimeEntryDto> dayEntries)
     {
         if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
         {
-            var dayName = date.ToString("dddd", new System.Globalization.CultureInfo("de-DE"));
+            var dayName = date.ToString("dddd", German);
             yield return new TimeEntryValidationWarning
             {
                 Type = "weekend",
@@ -57,7 +59,7 @@ public class TimeEntryValidationService : ITimeEntryValidationService
         }
     }
 
-    private IEnumerable<TimeEntryValidationWarning> ValidateOverlappingEntries(DateTime date, List<TimeEntryDto> dayEntries)
+    private static IEnumerable<TimeEntryValidationWarning> ValidateOverlappingEntries(DateTime date, List<TimeEntryDto> dayEntries)
     {
         List<TimeEntryValidationWarning> warnings = [];
 

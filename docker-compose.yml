@@ -8,19 +8,19 @@ services:
     env_file:
       - .env
     ports:
-      - "5000:80"
+      # Host-Port 5000 -> Container-Port 8080 (die App läuft im Container ohne Root-Rechte)
+      - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:80
-      # Database Connection - verwendet host.docker.internal um auf Host-SQL-Server zuzugreifen
-      - ConnectionStrings__DefaultConnection=Server=host.docker.internal;Database=TiroTime;User Id=usrTiroTime;Password=P@ssw0rd;TrustServerCertificate=True;MultipleActiveResultSets=true
-      # Note: SeedUsers and JWT settings are configured in .env file
-      # JWT Settings (keeping for reference, actual values from .env)
-      - JwtSettings__SecretKey=TiroTime_SuperSecretKey_MinLength32Characters_ChangeInProduction!
-      - JwtSettings__Issuer=TiroTime
-      - JwtSettings__Audience=TiroTimeUsers
-      - JwtSettings__ExpirationInMinutes=480
-      - JwtSettings__RefreshTokenExpirationInDays=7
+      - ASPNETCORE_URLS=http://+:8080
+      # Aus .env (nicht im Repository):
+      #   ConnectionStrings__DefaultConnection  (Server=host.docker.internal;Database=TiroTime;...)
+      #   ReportsApi__ApiKey                    (Pflicht für /api/reports/*)
+      #   TimeLoggingApi__ApiKey                (optional für POST /api/time-entries)
+      #   JWT_SECRET, MAILJET_*                 (siehe unten)
+      - Jwt__Secret=${JWT_SECRET:?JWT_SECRET muss in .env gesetzt sein (mindestens 32 Zeichen)}
+      - Jwt__Issuer=TiroTime
+      - Jwt__Audience=TiroTime
       - Mailjet__ApiKey=${MAILJET_API_KEY}
       - Mailjet__ApiSecret=${MAILJET_API_SECRET}
       - Mailjet__FromEmail=${MAILJET_FROM_EMAIL}

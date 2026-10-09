@@ -52,11 +52,11 @@ public class ClientTests
     [InlineData("")]
     [InlineData(" ")]
     [InlineData(null)]
-    public void Create_WithInvalidName_ShouldThrowDomainException(string invalidName)
+    public void Create_WithInvalidName_ShouldThrowDomainException(string? invalidName)
     {
         // Act & Assert
         var exception = Assert.Throws<DomainException>(() =>
-            Client.Create(invalidName));
+            Client.Create(invalidName!));
 
         Assert.Contains("Kundenname darf nicht leer sein", exception.Message);
     }
@@ -92,14 +92,14 @@ public class ClientTests
     [InlineData("")]
     [InlineData(" ")]
     [InlineData(null)]
-    public void Update_WithInvalidName_ShouldThrowDomainException(string invalidName)
+    public void Update_WithInvalidName_ShouldThrowDomainException(string? invalidName)
     {
         // Arrange
         var client = Client.Create("Test Client");
 
         // Act & Assert
         var exception = Assert.Throws<DomainException>(() =>
-            client.Update(invalidName));
+            client.Update(invalidName!));
 
         Assert.Contains("Kundenname darf nicht leer sein", exception.Message);
     }

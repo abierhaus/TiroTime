@@ -8,114 +8,111 @@ namespace TiroTime.Infrastructure.Persistence;
 
 public static class DatabaseSeeder
 {
+    private static readonly string[] Roles = ["Admin", "Manager", "User"];
+
     public static async Task SeedAsync(IServiceProvider serviceProvider)
     {
         using var scope = serviceProvider.CreateScope();
         var services = scope.ServiceProvider;
+        var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
 
         try
         {
-            var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
-            var configuration = services.GetRequiredService<IConfiguration>();
-            var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
 
             await SeedRolesAsync(roleManager, logger);
-            // await SeedAdminUserAsync(userManager, logger);
-            // await SeedStandardUserAsync(userManager, configuration, logger);
+
+            // Benutzer-Seeding ist bewusst deaktiviert (Registrierung über die Oberfläche):
+            // await SeedAdminUserAsync(services.GetRequiredService<UserManager<ApplicationUser>>(), logger);
+            // await SeedStandardUserAsync(services.GetRequiredService<UserManager<ApplicationUser>>(), services.GetRequiredService<IConfiguration>(), logger);
         }
         catch (Exception ex)
         {
-            var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
             logger.LogError(ex, "Ein Fehler ist beim Seeden der Datenbank aufgetreten.");
         }
     }
 
     private static async Task SeedRolesAsync(RoleManager<ApplicationRole> roleManager, ILogger logger)
     {
-        string[] roles =
+        foreach (var roleName in Roles)
         {
-            "Admin",
-            "Manager",
-            "User"
-        };
-
-        foreach (var roleName in roles)
-        {
-            var roleExists = await roleManager.RoleExistsAsync(roleName);
-            if (!roleExists)
+            if (await roleManager.RoleExistsAsync(roleName))
             {
-                var role = new ApplicationRole(roleName)
-                {
-                    Description = roleName switch
-                    {
-                        "Admin" => "Systemadministrator mit vollen Rechten",
-                        "Manager" => "Manager mit erweiterten Rechten",
-                        "User" => "Normaler Benutzer",
-                        _ => null
-                    }
-                };
-
-                var result = await roleManager.CreateAsync(role);
-                if (result.Succeeded)
-                {
-                    logger.LogInformation("Rolle '{RoleName}' wurde erstellt.", roleName);
-                }
-                else
-                {
-                    logger.LogError("Fehler beim Erstellen der Rolle '{RoleName}': {Errors}",
-                        roleName, string.Join(", ", result.Errors.Select(e => e.Description)));
-                }
+                continue;
             }
-        }
-    }
 
-    private static async Task SeedAdminUserAsync(UserManager<ApplicationUser> userManager, ILogger logger)
-    {
-        var adminEmail = "admin@tirotime.com";
-        var adminUser = await userManager.FindByEmailAsync(adminEmail);
-
-        if (adminUser == null)
-        {
-            adminUser = new ApplicationUser
+            var role = new ApplicationRole(roleName)
             {
-                UserName = adminEmail,
-                Email = adminEmail,
-                FirstName = "System",
-                LastName = "Administrator",
-                EmailConfirmed = true,
-                Status = UserStatus.Active
+                Description = roleName switch
+                {
+                    "Admin" => "Systemadministrator mit vollen Rechten",
+                    "Manager" => "Manager mit erweiterten Rechten",
+                    "User" => "Normaler Benutzer",
+                    _ => null
+                }
             };
 
-            // Default admin password - CHANGE THIS IN PRODUCTION!
-            var result = await userManager.CreateAsync(adminUser, "Admin123!@#$");
-
+            var result = await roleManager.CreateAsync(role);
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
-                logger.LogInformation("Admin-Benutzer wurde erstellt: {Email}", adminEmail);
-                logger.LogWarning("WICHTIG: Ändern Sie das Standardpasswort des Admin-Benutzers!");
+                logger.LogInformation("Rolle '{RoleName}' wurde erstellt.", roleName);
             }
             else
             {
-                logger.LogError("Fehler beim Erstellen des Admin-Benutzers: {Errors}",
-                    string.Join(", ", result.Errors.Select(e => e.Description)));
+                logger.LogError("Fehler beim Erstellen der Rolle '{RoleName}': {Errors}",
+                    roleName, string.Join(", ", result.Errors.Select(e => e.Description)));
             }
         }
     }
 
+    // Wird derzeit nicht aufgerufen – bleibt als Vorlage für ein optionales Admin-Seeding erhalten.
+    private static async Task SeedAdminUserAsync(UserManager<ApplicationUser> userManager, ILogger logger)
+    {
+        const string adminEmail = "admin@tirotime.com";
+        var adminUser = await userManager.FindByEmailAsync(adminEmail);
+
+        if (adminUser != null)
+        {
+            return;
+        }
+
+        adminUser = new ApplicationUser
+        {
+            UserName = adminEmail,
+            Email = adminEmail,
+            FirstName = "System",
+            LastName = "Administrator",
+            EmailConfirmed = true,
+            Status = UserStatus.Active
+        };
+
+        // Default admin password - CHANGE THIS IN PRODUCTION!
+        var result = await userManager.CreateAsync(adminUser, "Admin123!@#$");
+
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+            logger.LogInformation("Admin-Benutzer wurde erstellt: {Email}", adminEmail);
+            logger.LogWarning("WICHTIG: Ändern Sie das Standardpasswort des Admin-Benutzers!");
+        }
+        else
+        {
+            logger.LogError("Fehler beim Erstellen des Admin-Benutzers: {Errors}",
+                string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
+    // Wird derzeit nicht aufgerufen – Standardbenutzer aus SeedUsers:StandardUser:* (User Secrets / Umgebungsvariablen).
     private static async Task SeedStandardUserAsync(
         UserManager<ApplicationUser> userManager,
         IConfiguration configuration,
         ILogger logger)
     {
-        // Load user data from configuration (user secrets in development)
         var email = configuration["SeedUsers:StandardUser:Email"];
         var firstName = configuration["SeedUsers:StandardUser:FirstName"];
         var lastName = configuration["SeedUsers:StandardUser:LastName"];
         var password = configuration["SeedUsers:StandardUser:Password"];
 
-        // Only seed if all required data is present
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(firstName) ||
             string.IsNullOrEmpty(lastName) || string.IsNullOrEmpty(password))
         {
@@ -124,31 +121,32 @@ public static class DatabaseSeeder
         }
 
         var standardUser = await userManager.FindByEmailAsync(email);
-
-        if (standardUser == null)
+        if (standardUser != null)
         {
-            standardUser = new ApplicationUser
-            {
-                UserName = email,
-                Email = email,
-                FirstName = firstName,
-                LastName = lastName,
-                EmailConfirmed = true,
-                Status = UserStatus.Active
-            };
+            return;
+        }
 
-            var result = await userManager.CreateAsync(standardUser, password);
+        standardUser = new ApplicationUser
+        {
+            UserName = email,
+            Email = email,
+            FirstName = firstName,
+            LastName = lastName,
+            EmailConfirmed = true,
+            Status = UserStatus.Active
+        };
 
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(standardUser, "User");
-                logger.LogInformation("Standard-Benutzer wurde erstellt: {Email}", email);
-            }
-            else
-            {
-                logger.LogError("Fehler beim Erstellen des Standard-Benutzers: {Errors}",
-                    string.Join(", ", result.Errors.Select(e => e.Description)));
-            }
+        var result = await userManager.CreateAsync(standardUser, password);
+
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(standardUser, "User");
+            logger.LogInformation("Standard-Benutzer wurde erstellt: {Email}", email);
+        }
+        else
+        {
+            logger.LogError("Fehler beim Erstellen des Standard-Benutzers: {Errors}",
+                string.Join(", ", result.Errors.Select(e => e.Description)));
         }
     }
 }

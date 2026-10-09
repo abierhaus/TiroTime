@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
@@ -13,17 +12,8 @@ using TiroTime.Infrastructure.Persistence;
 
 namespace TiroTime.Infrastructure.Services;
 
-public class ReportService : IReportService
+public class ReportService(ApplicationDbContext context, ILogger<ReportService> logger) : IReportService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly ILogger<ReportService> _logger;
-
-    public ReportService(ApplicationDbContext context, ILogger<ReportService> logger)
-    {
-        _context = context;
-        _logger = logger;
-    }
-
     public async Task<Result<IEnumerable<TimeEntryReportDto>>> GetTimeEntriesReportAsync(
         Guid userId,
         GenerateReportDto dto,
@@ -31,44 +21,12 @@ public class ReportService : IReportService
     {
         try
         {
-            var query = _context.TimeEntries
-                .Include(te => te.Project)
-                .ThenInclude(p => p.Client)
-                .Where(te => te.UserId == userId
-                    && !te.IsRunning
-                    && te.StartTime >= dto.StartDate
-                    && te.StartTime < dto.EndDate.AddDays(1));
-
-            if (dto.ProjectId.HasValue)
-            {
-                query = query.Where(te => te.ProjectId == dto.ProjectId.Value);
-            }
-
-            if (dto.ClientId.HasValue)
-            {
-                query = query.Where(te => te.Project.ClientId == dto.ClientId.Value);
-            }
-
-            var entries = await query
-                .OrderBy(te => te.StartTime)
-                .Select(te => new TimeEntryReportDto(
-                    te.StartTime.Date,
-                    te.Project.Name,
-                    te.Project.Client.Name,
-                    te.Description,
-                    te.StartTime.TimeOfDay,
-                    te.EndTime!.Value.TimeOfDay,
-                    te.Duration,
-                    te.Project.HourlyRate.Amount,
-                    te.Project.HourlyRate.Currency,
-                    (decimal)te.Duration.TotalHours * te.Project.HourlyRate.Amount))
-                .ToListAsync(cancellationToken);
-
-            return Result.Success(entries.AsEnumerable());
+            var entries = await LoadEntriesAsync(userId, dto, cancellationToken);
+            return Result.Success<IEnumerable<TimeEntryReportDto>>(entries);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler beim Laden des Reports");
+            logger.LogError(ex, "Fehler beim Laden des Reports");
             return Result.Failure<IEnumerable<TimeEntryReportDto>>("Fehler beim Laden des Reports");
         }
     }
@@ -80,43 +38,9 @@ public class ReportService : IReportService
     {
         var entriesResult = await GetTimeEntriesReportAsync(userId, dto, cancellationToken);
 
-        if (!entriesResult.IsSuccess)
-        {
-            return Result.Failure<ReportSummaryDto>(entriesResult.Error);
-        }
-
-        var entries = entriesResult.Value.ToList();
-
-        var clientSummaries = entries
-            .GroupBy(e => e.ClientName)
-            .Select(g => new ClientSummaryDto(
-                g.Key,
-                g.Count(),
-                TimeSpan.FromTicks(g.Sum(e => e.Duration.Ticks)),
-                g.Sum(e => e.TotalAmount)))
-            .ToList();
-
-        var projectSummaries = entries
-            .GroupBy(e => new { e.ProjectName, e.ClientName, e.Currency })
-            .Select(g => new ProjectSummaryDto(
-                g.Key.ProjectName,
-                g.Key.ClientName,
-                g.Count(),
-                TimeSpan.FromTicks(g.Sum(e => e.Duration.Ticks)),
-                g.Sum(e => e.TotalAmount),
-                g.Key.Currency))
-            .ToList();
-
-        var summary = new ReportSummaryDto(
-            entries.Count,
-            TimeSpan.FromTicks(entries.Sum(e => e.Duration.Ticks)),
-            entries.Sum(e => e.TotalAmount),
-            dto.StartDate,
-            dto.EndDate,
-            clientSummaries,
-            projectSummaries);
-
-        return Result.Success(summary);
+        return entriesResult.IsSuccess
+            ? Result.Success(BuildSummary(entriesResult.Value.ToList(), dto))
+            : Result.Failure<ReportSummaryDto>(entriesResult.Error);
     }
 
     public async Task<Result<byte[]>> ExportToCsvAsync(
@@ -136,16 +60,17 @@ public class ReportService : IReportService
 
         foreach (var entry in entriesResult.Value)
         {
-            csv.AppendLine($"{entry.Date:dd.MM.yyyy};" +
-                          $"{EscapeCsv(entry.ProjectName)};" +
-                          $"{EscapeCsv(entry.ClientName)};" +
-                          $"{EscapeCsv(entry.Description ?? "")};" +
-                          $"{entry.StartTime:hh\\:mm};" +
-                          $"{entry.EndTime:hh\\:mm};" +
-                          $"{entry.Duration:hh\\:mm};" +
-                          $"{entry.HourlyRate:F2};" +
-                          $"{entry.Currency};" +
-                          $"{entry.TotalAmount:F2}");
+            csv.Append(entry.Date.ToString("dd.MM.yyyy")).Append(';')
+               .Append(EscapeCsv(entry.ProjectName)).Append(';')
+               .Append(EscapeCsv(entry.ClientName)).Append(';')
+               .Append(EscapeCsv(entry.Description ?? "")).Append(';')
+               .Append(entry.StartTime.ToString(@"hh\:mm")).Append(';')
+               .Append(entry.EndTime.ToString(@"hh\:mm")).Append(';')
+               .Append(entry.Duration.ToString(@"hh\:mm")).Append(';')
+               .Append(entry.HourlyRate.ToString("F2")).Append(';')
+               .Append(entry.Currency).Append(';')
+               .Append(entry.TotalAmount.ToString("F2"))
+               .AppendLine();
         }
 
         return Result.Success(Encoding.UTF8.GetBytes(csv.ToString()));
@@ -163,37 +88,19 @@ public class ReportService : IReportService
             return Result.Failure<byte[]>(entriesResult.Error);
         }
 
-        var summaryResult = await GetReportSummaryAsync(userId, dto, cancellationToken);
-
-        if (!summaryResult.IsSuccess)
-        {
-            return Result.Failure<byte[]>(summaryResult.Error);
-        }
+        // Einträge nur einmal laden; die Zusammenfassung wird daraus berechnet
+        var entries = entriesResult.Value.ToList();
+        var summary = BuildSummary(entries, dto);
 
         using var workbook = new XLWorkbook();
 
         // Zeiteinträge Sheet
         var entriesSheet = workbook.Worksheets.Add("Zeiteinträge");
 
-        // Header
-        entriesSheet.Cell(1, 1).Value = "Datum";
-        entriesSheet.Cell(1, 2).Value = "Projekt";
-        entriesSheet.Cell(1, 3).Value = "Kunde";
-        entriesSheet.Cell(1, 4).Value = "Beschreibung";
-        entriesSheet.Cell(1, 5).Value = "Startzeit";
-        entriesSheet.Cell(1, 6).Value = "Endzeit";
-        entriesSheet.Cell(1, 7).Value = "Dauer (Std)";
-        entriesSheet.Cell(1, 8).Value = "Stundensatz";
-        entriesSheet.Cell(1, 9).Value = "Währung";
-        entriesSheet.Cell(1, 10).Value = "Betrag";
+        WriteHeader(entriesSheet, 1, "Datum", "Projekt", "Kunde", "Beschreibung", "Startzeit", "Endzeit", "Dauer (Std)", "Stundensatz", "Währung", "Betrag");
 
-        var headerRange = entriesSheet.Range(1, 1, 1, 10);
-        headerRange.Style.Font.Bold = true;
-        headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
-
-        // Data
         var row = 2;
-        foreach (var entry in entriesResult.Value)
+        foreach (var entry in entries)
         {
             entriesSheet.Cell(row, 1).Value = entry.Date.ToString("dd.MM.yyyy");
             entriesSheet.Cell(row, 2).Value = entry.ProjectName;
@@ -215,7 +122,6 @@ public class ReportService : IReportService
 
         // Zusammenfassung Sheet
         var summarySheet = workbook.Worksheets.Add("Zusammenfassung");
-        var summary = summaryResult.Value;
 
         summarySheet.Cell(1, 1).Value = "Berichtszeitraum";
         summarySheet.Cell(1, 1).Style.Font.Bold = true;
@@ -232,17 +138,7 @@ public class ReportService : IReportService
         summarySheet.Cell(5, 2).Value = summary.TotalAmount;
         summarySheet.Cell(5, 2).Style.NumberFormat.Format = "#,##0.00";
 
-        // Projekt-Zusammenfassung
-        summarySheet.Cell(7, 1).Value = "Projekt";
-        summarySheet.Cell(7, 2).Value = "Kunde";
-        summarySheet.Cell(7, 3).Value = "Einträge";
-        summarySheet.Cell(7, 4).Value = "Stunden";
-        summarySheet.Cell(7, 5).Value = "Betrag";
-        summarySheet.Cell(7, 6).Value = "Währung";
-
-        var summaryHeaderRange = summarySheet.Range(7, 1, 7, 6);
-        summaryHeaderRange.Style.Font.Bold = true;
-        summaryHeaderRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+        WriteHeader(summarySheet, 7, "Projekt", "Kunde", "Einträge", "Stunden", "Betrag", "Währung");
 
         row = 8;
         foreach (var projectSummary in summary.ProjectSummaries)
@@ -283,24 +179,12 @@ public class ReportService : IReportService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Zeiteinträge");
 
-        // Set landscape orientation
         sheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
         sheet.PageSetup.FitToPages(1, 0); // Fit to 1 page wide
 
         // Header (without "Betrag", "Stundensatz" and "Währung" columns)
-        sheet.Cell(1, 1).Value = "Datum";
-        sheet.Cell(1, 2).Value = "Projekt";
-        sheet.Cell(1, 3).Value = "Kunde";
-        sheet.Cell(1, 4).Value = "Beschreibung";
-        sheet.Cell(1, 5).Value = "Von";
-        sheet.Cell(1, 6).Value = "Bis";
-        sheet.Cell(1, 7).Value = "Dauer (Std)";
+        WriteHeader(sheet, 1, "Datum", "Projekt", "Kunde", "Beschreibung", "Von", "Bis", "Dauer (Std)");
 
-        var headerRange = sheet.Range(1, 1, 1, 7);
-        headerRange.Style.Font.Bold = true;
-        headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
-
-        // Data
         var row = 2;
         foreach (var entry in entries)
         {
@@ -327,9 +211,6 @@ public class ReportService : IReportService
         GenerateReportDto dto,
         CancellationToken cancellationToken = default)
     {
-        // Configure QuestPDF license
-        QuestPDF.Settings.License = LicenseType.Community;
-
         var entriesResult = await GetTimeEntriesReportAsync(userId, dto, cancellationToken);
 
         if (!entriesResult.IsSuccess)
@@ -367,45 +248,26 @@ public class ReportService : IReportService
                         columns.RelativeColumn(1.2f); // Dauer
                     });
 
-                    // Header
                     table.Header(header =>
                     {
-                        header.Cell().Element(CellStyle).Text("Datum").Bold();
-                        header.Cell().Element(CellStyle).Text("Projekt").Bold();
-                        header.Cell().Element(CellStyle).Text("Kunde").Bold();
-                        header.Cell().Element(CellStyle).Text("Beschreibung").Bold();
-                        header.Cell().Element(CellStyle).Text("Von").Bold();
-                        header.Cell().Element(CellStyle).Text("Bis").Bold();
-                        header.Cell().Element(CellStyle).Text("Dauer").Bold();
-
-                        static IContainer CellStyle(IContainer container)
-                        {
-                            return container
-                                .Border(1)
-                                .BorderColor(Colors.Grey.Lighten2)
-                                .Background(Colors.Grey.Lighten3)
-                                .Padding(5);
-                        }
+                        header.Cell().Element(HeaderCellStyle).Text("Datum").Bold();
+                        header.Cell().Element(HeaderCellStyle).Text("Projekt").Bold();
+                        header.Cell().Element(HeaderCellStyle).Text("Kunde").Bold();
+                        header.Cell().Element(HeaderCellStyle).Text("Beschreibung").Bold();
+                        header.Cell().Element(HeaderCellStyle).Text("Von").Bold();
+                        header.Cell().Element(HeaderCellStyle).Text("Bis").Bold();
+                        header.Cell().Element(HeaderCellStyle).Text("Dauer").Bold();
                     });
 
-                    // Data rows
                     foreach (var entry in entries)
                     {
-                        table.Cell().Element(CellStyle).Text(entry.Date.ToString("dd.MM.yyyy"));
-                        table.Cell().Element(CellStyle).Text(entry.ProjectName);
-                        table.Cell().Element(CellStyle).Text(entry.ClientName);
-                        table.Cell().Element(CellStyle).Text(entry.Description ?? "-");
-                        table.Cell().Element(CellStyle).Text(entry.StartTime.ToString(@"hh\:mm"));
-                        table.Cell().Element(CellStyle).Text(entry.EndTime.ToString(@"hh\:mm"));
-                        table.Cell().Element(CellStyle).Text(entry.Duration.ToString(@"hh\:mm"));
-
-                        static IContainer CellStyle(IContainer container)
-                        {
-                            return container
-                                .Border(1)
-                                .BorderColor(Colors.Grey.Lighten2)
-                                .Padding(5);
-                        }
+                        table.Cell().Element(BodyCellStyle).Text(entry.Date.ToString("dd.MM.yyyy"));
+                        table.Cell().Element(BodyCellStyle).Text(entry.ProjectName);
+                        table.Cell().Element(BodyCellStyle).Text(entry.ClientName);
+                        table.Cell().Element(BodyCellStyle).Text(entry.Description ?? "-");
+                        table.Cell().Element(BodyCellStyle).Text(entry.StartTime.ToString(@"hh\:mm"));
+                        table.Cell().Element(BodyCellStyle).Text(entry.EndTime.ToString(@"hh\:mm"));
+                        table.Cell().Element(BodyCellStyle).Text(entry.Duration.ToString(@"hh\:mm"));
                     }
                 });
 
@@ -425,22 +287,116 @@ public class ReportService : IReportService
         return Result.Success((pdfBytes, fileName));
     }
 
+    /// <summary>
+    /// Lädt die Einträge als Projektion direkt aus der Datenbank (keine Entities, kein Change Tracking).
+    /// </summary>
+    private async Task<List<TimeEntryReportDto>> LoadEntriesAsync(
+        Guid userId,
+        GenerateReportDto dto,
+        CancellationToken cancellationToken)
+    {
+        var endExclusive = dto.EndDate.AddDays(1);
+
+        var query = context.TimeEntries
+            .AsNoTracking()
+            .Where(te => te.UserId == userId
+                && !te.IsRunning
+                && te.StartTime >= dto.StartDate
+                && te.StartTime < endExclusive);
+
+        if (dto.ProjectId.HasValue)
+        {
+            query = query.Where(te => te.ProjectId == dto.ProjectId.Value);
+        }
+
+        if (dto.ClientId.HasValue)
+        {
+            query = query.Where(te => te.Project!.ClientId == dto.ClientId.Value);
+        }
+
+        return await query
+            .OrderBy(te => te.StartTime)
+            .Select(te => new TimeEntryReportDto(
+                te.StartTime.Date,
+                te.Project!.Name,
+                te.Project.Client!.Name,
+                te.Description,
+                te.StartTime.TimeOfDay,
+                te.EndTime!.Value.TimeOfDay,
+                te.Duration,
+                te.Project.HourlyRate.Amount,
+                te.Project.HourlyRate.Currency,
+                (decimal)te.Duration.TotalHours * te.Project.HourlyRate.Amount))
+            .ToListAsync(cancellationToken);
+    }
+
+    private static ReportSummaryDto BuildSummary(List<TimeEntryReportDto> entries, GenerateReportDto dto)
+    {
+        var clientSummaries = entries
+            .GroupBy(e => e.ClientName)
+            .Select(g => new ClientSummaryDto(
+                g.Key,
+                g.Count(),
+                TimeSpan.FromTicks(g.Sum(e => e.Duration.Ticks)),
+                g.Sum(e => e.TotalAmount)))
+            .ToList();
+
+        var projectSummaries = entries
+            .GroupBy(e => new { e.ProjectName, e.ClientName, e.Currency })
+            .Select(g => new ProjectSummaryDto(
+                g.Key.ProjectName,
+                g.Key.ClientName,
+                g.Count(),
+                TimeSpan.FromTicks(g.Sum(e => e.Duration.Ticks)),
+                g.Sum(e => e.TotalAmount),
+                g.Key.Currency))
+            .ToList();
+
+        return new ReportSummaryDto(
+            entries.Count,
+            TimeSpan.FromTicks(entries.Sum(e => e.Duration.Ticks)),
+            entries.Sum(e => e.TotalAmount),
+            dto.StartDate,
+            dto.EndDate,
+            clientSummaries,
+            projectSummaries);
+    }
+
+    private static void WriteHeader(IXLWorksheet sheet, int row, params string[] titles)
+    {
+        for (var i = 0; i < titles.Length; i++)
+        {
+            sheet.Cell(row, i + 1).Value = titles[i];
+        }
+
+        var headerRange = sheet.Range(row, 1, row, titles.Length);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+    }
+
+    private static IContainer HeaderCellStyle(IContainer container) =>
+        container
+            .Border(1)
+            .BorderColor(Colors.Grey.Lighten2)
+            .Background(Colors.Grey.Lighten3)
+            .Padding(5);
+
+    private static IContainer BodyCellStyle(IContainer container) =>
+        container
+            .Border(1)
+            .BorderColor(Colors.Grey.Lighten2)
+            .Padding(5);
+
     private static string GenerateFileName(
-        IEnumerable<TimeEntryReportDto> entries,
+        IReadOnlyCollection<TimeEntryReportDto> entries,
         DateTime startDate,
         DateTime endDate,
         string extension)
     {
-        var entryList = entries.ToList();
-
-        // Get unique client names
-        var clientNames = entryList.Select(e => e.ClientName).Distinct().ToList();
+        var clientNames = entries.Select(e => e.ClientName).Distinct().ToList();
 
         // Use client name if only one, otherwise "Alle"
-        var clientPart = clientNames.Count == 1 ? clientNames[0] : "Alle";
-
-        // Sanitize filename
-        clientPart = SanitizeFileName(clientPart);
+        var clientPart = SanitizeFileName(clientNames.Count == 1 ? clientNames[0] : "Alle");
 
         return $"{clientPart}-{startDate:yyyy-MM-dd}-{endDate:yyyy-MM-dd}.{extension}";
     }

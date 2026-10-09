@@ -14,7 +14,7 @@ Diese Anleitung beschreibt, wie Sie TiroTime in einem Docker-Container deployen.
 ### 1. Container bauen und starten
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 Der Container startet automatisch und ist unter http://localhost:5000 erreichbar.
@@ -22,13 +22,13 @@ Der Container startet automatisch und ist unter http://localhost:5000 erreichbar
 ### 2. Logs anzeigen
 
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### 3. Container stoppen
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ## Wichtige Hinweise
@@ -53,8 +53,8 @@ Server=host.docker.internal;Database=TiroTime;User Id=usrTiroTime;Password=P@ssw
 
 ### Ports
 
-- **HTTP:** http://localhost:5000
-- **HTTPS:** https://localhost:5001 (nur wenn Zertifikat konfiguriert)
+- **HTTP:** http://localhost:5000 (Host-Port 5000 -> Container-Port 8080)
+- **Health-Check:** http://localhost:5000/health
 
 ## Konfiguration anpassen
 
@@ -96,7 +96,7 @@ Beim ersten Start wendet die Anwendung automatisch alle Datenbank-Migrationen an
 
 Logs prüfen:
 ```bash
-docker-compose logs tirotime-web
+docker compose logs tirotime-web
 ```
 
 ### Keine Verbindung zur Datenbank
@@ -116,9 +116,9 @@ docker exec -it tirotime-app bash
 Falls Sie Änderungen am Code vorgenommen haben:
 
 ```bash
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ## Dockerfile Details
@@ -126,14 +126,14 @@ docker-compose up -d
 Das Dockerfile verwendet einen **Multi-Stage Build** für optimale Image-Größe:
 
 ### Build Stage
-1. Kopiert Solution und alle .csproj Dateien (inkl. Test-Projekte für restore)
+1. Kopiert `global.json`, `Directory.Build.props`, `Directory.Packages.props` und die .csproj-Dateien (Restore-Layer wird gecacht)
 2. Führt `dotnet restore` nur für das Web-Projekt aus
 3. Kopiert nur die `src/` Quelldateien (Tests bleiben außen vor)
 4. Baut und publisht das Web-Projekt im Release-Modus
 
 ### Runtime Stage
-1. Verwendet schlankes aspnet:9.0 Runtime-Image
-2. Kopiert nur die kompilierten Binaries
+1. Verwendet schlankes aspnet:10.0 Runtime-Image, läuft als unprivilegierter Benutzer (`USER $APP_UID`) auf Port 8080
+2. Kopiert nur die kompilierten Binaries und bringt einen `HEALTHCHECK` auf `/health` mit
 3. Enthält keine Build-Tools oder Test-Projekte
 
 **Ergebnis:** Schlankes Produktions-Image ohne unnötige Dependencies.
@@ -152,10 +152,10 @@ Für die Produktion:
 
 ```bash
 # Container Status anzeigen
-docker-compose ps
+docker compose ps
 
 # Container neu starten
-docker-compose restart
+docker compose restart
 
 # In den Container einloggen
 docker exec -it tirotime-app bash
@@ -165,4 +165,13 @@ docker stats tirotime-app
 
 # Alle Container und Images aufräumen
 docker system prune -a
+```
+
+## Health-Check
+
+Der Container meldet seinen Zustand über `GET /health` (prüft auch die Datenbankverbindung).
+Docker wertet den Endpunkt automatisch per `HEALTHCHECK` aus:
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' tirotime-app
 ```

@@ -1,29 +1,23 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using TiroTime.Application.Interfaces;
+using TiroTime.Infrastructure.Options;
 
 namespace TiroTime.Infrastructure.Services;
 
-public class JwtTokenService : IJwtTokenService
+/// <summary>
+/// Erzeugt und validiert JWTs über den modernen <see cref="JsonWebTokenHandler"/>
+/// (Nachfolger des veralteten System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler).
+/// </summary>
+public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
 {
-    private readonly IConfiguration _configuration;
-    private readonly string _secret;
-    private readonly string _issuer;
-    private readonly string _audience;
-    private readonly int _accessTokenExpirationMinutes;
-
-    public JwtTokenService(IConfiguration configuration)
-    {
-        _configuration = configuration;
-        _secret = configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
-        _issuer = configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured");
-        _audience = configuration["Jwt:Audience"] ?? throw new InvalidOperationException("JWT Audience not configured");
-        _accessTokenExpirationMinutes = int.Parse(configuration["Jwt:AccessTokenExpirationMinutes"] ?? "15");
-    }
+    private readonly JwtOptions _options = options.Value;
+    private readonly JsonWebTokenHandler _handler = new();
+    private readonly SymmetricSecurityKey _signingKey = new(Encoding.UTF8.GetBytes(options.Value.Secret));
 
     public string GenerateAccessToken(Guid userId, string email, IEnumerable<string> roles)
     {
@@ -36,61 +30,42 @@ public class JwtTokenService : IJwtTokenService
             new(ClaimTypes.Name, email)
         };
 
-        // Add roles as claims
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = _options.Issuer,
+            Audience = _options.Audience,
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddMinutes(_options.AccessTokenExpirationMinutes),
+            SigningCredentials = new SigningCredentials(_signingKey, SecurityAlgorithms.HmacSha256)
+        };
 
-        var token = new JwtSecurityToken(
-            issuer: _issuer,
-            audience: _audience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(_accessTokenExpirationMinutes),
-            signingCredentials: credentials
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return _handler.CreateToken(descriptor);
     }
 
     public string GenerateRefreshToken()
     {
-        var randomNumber = new byte[64];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(randomNumber);
+        var randomNumber = RandomNumberGenerator.GetBytes(64);
         return Convert.ToBase64String(randomNumber);
     }
 
-    public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
+    public async Task<ClaimsPrincipal?> GetPrincipalFromExpiredTokenAsync(string token)
     {
-        var tokenValidationParameters = new TokenValidationParameters
+        var validationParameters = new TokenValidationParameters
         {
             ValidateAudience = true,
             ValidateIssuer = true,
             ValidateIssuerSigningKey = true,
-            ValidateLifetime = false, // Don't validate lifetime for expired tokens
-            ValidIssuer = _issuer,
-            ValidAudience = _audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret))
+            ValidateLifetime = false, // abgelaufene Tokens dürfen beim Refresh gelesen werden
+            ValidIssuer = _options.Issuer,
+            ValidAudience = _options.Audience,
+            IssuerSigningKey = _signingKey,
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256]
         };
 
-        var tokenHandler = new JwtSecurityTokenHandler();
+        var result = await _handler.ValidateTokenAsync(token, validationParameters);
 
-        try
-        {
-            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
-
-            if (securityToken is not JwtSecurityToken jwtSecurityToken ||
-                !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
-            {
-                return null;
-            }
-
-            return principal;
-        }
-        catch
-        {
-            return null;
-        }
+        return result.IsValid ? new ClaimsPrincipal(result.ClaimsIdentity) : null;
     }
 }

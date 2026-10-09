@@ -43,7 +43,7 @@ public static class ReportsApi
             return Results.BadRequest(new { error = result.Error });
         }
 
-        var summary = result.Value!;
+        var summary = result.Value;
         return Results.Ok(new
         {
             client = clientName,
@@ -123,29 +123,36 @@ public static class ReportsApi
     {
         // Pflicht: ohne konfigurierten ReportsApi:ApiKey bleibt die API geschlossen
         var configuredApiKey = configuration["ReportsApi:ApiKey"];
-        if (string.IsNullOrEmpty(configuredApiKey) ||
-            httpContext.Request.Headers["X-Api-Key"] != configuredApiKey)
+        if (string.IsNullOrEmpty(configuredApiKey) || !ApiHelpers.HasValidApiKey(httpContext.Request, configuredApiKey))
         {
-            return (Results.Json(new { error = "Ungültiger API-Key" }, statusCode: StatusCodes.Status401Unauthorized), default, null, null);
+            return (ApiHelpers.Unauthorized(), Guid.Empty, null, null);
         }
 
         if (!DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd", out var firstDay))
         {
-            return (Results.BadRequest(new { error = "month muss im Format yyyy-MM angegeben werden" }), default, null, null);
+            return (Results.BadRequest(new { error = "month muss im Format yyyy-MM angegeben werden" }), Guid.Empty, null, null);
         }
 
         var clientEntity = await dbContext.Clients
-            .FirstOrDefaultAsync(c => c.Name == client, cancellationToken);
+            .AsNoTracking()
+            .Where(c => c.Name == client)
+            .Select(c => new { c.Id, c.Name })
+            .FirstOrDefaultAsync(cancellationToken);
+
         if (clientEntity is null)
         {
-            var available = await dbContext.Clients.Select(c => c.Name).ToListAsync(cancellationToken);
-            return (Results.NotFound(new { error = $"Kunde '{client}' wurde nicht gefunden", availableClients = available }), default, null, null);
+            var available = await dbContext.Clients
+                .AsNoTracking()
+                .OrderBy(c => c.Name)
+                .Select(c => c.Name)
+                .ToListAsync(cancellationToken);
+            return (Results.NotFound(new { error = $"Kunde '{client}' wurde nicht gefunden", availableClients = available }), Guid.Empty, null, null);
         }
 
-        var user = await ResolveUserAsync(userEmail, dbContext, userManager, cancellationToken);
+        var user = await ApiHelpers.ResolveUserAsync(userEmail, dbContext, userManager, cancellationToken);
         if (user is null)
         {
-            return (Results.BadRequest(new { error = "Benutzer konnte nicht ermittelt werden. Bitte 'userEmail' angeben." }), default, null, null);
+            return (Results.BadRequest(new { error = "Benutzer konnte nicht ermittelt werden. Bitte 'userEmail' angeben." }), Guid.Empty, null, null);
         }
 
         // EndDate ist der letzte Tag des Monats; der ReportService rechnet selbst + 1 Tag
@@ -154,20 +161,5 @@ public static class ReportsApi
         var dto = new GenerateReportDto(start, end, ClientId: clientEntity.Id);
 
         return (null, user.Id, dto, clientEntity.Name);
-    }
-
-    private static async Task<ApplicationUser?> ResolveUserAsync(
-        string? userEmail,
-        ApplicationDbContext dbContext,
-        UserManager<ApplicationUser> userManager,
-        CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(userEmail))
-        {
-            return await userManager.FindByEmailAsync(userEmail);
-        }
-
-        var users = await dbContext.Users.Take(2).ToListAsync(cancellationToken);
-        return users.Count == 1 ? users[0] : null;
     }
 }

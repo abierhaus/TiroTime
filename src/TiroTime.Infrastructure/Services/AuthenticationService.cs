@@ -1,27 +1,21 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TiroTime.Application.Common;
 using TiroTime.Application.Interfaces;
 using TiroTime.Domain.Identity;
+using TiroTime.Infrastructure.Options;
 using TiroTime.Infrastructure.Persistence;
 
 namespace TiroTime.Infrastructure.Services;
 
-public class AuthenticationService : IAuthenticationService
+public class AuthenticationService(
+    UserManager<ApplicationUser> userManager,
+    IJwtTokenService jwtTokenService,
+    ApplicationDbContext context,
+    IOptions<JwtOptions> jwtOptions) : IAuthenticationService
 {
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IJwtTokenService _jwtTokenService;
-    private readonly ApplicationDbContext _context;
-
-    public AuthenticationService(
-        UserManager<ApplicationUser> userManager,
-        IJwtTokenService jwtTokenService,
-        ApplicationDbContext context)
-    {
-        _userManager = userManager;
-        _jwtTokenService = jwtTokenService;
-        _context = context;
-    }
+    private readonly JwtOptions _jwt = jwtOptions.Value;
 
     public async Task<Result<AuthenticationResult>> LoginAsync(
         string email,
@@ -29,7 +23,7 @@ public class AuthenticationService : IAuthenticationService
         string ipAddress,
         CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.FindByEmailAsync(email);
+        var user = await userManager.FindByEmailAsync(email);
         if (user == null)
         {
             return Result.Failure<AuthenticationResult>("Ungültige Anmeldedaten");
@@ -40,56 +34,24 @@ public class AuthenticationService : IAuthenticationService
             return Result.Failure<AuthenticationResult>("Benutzerkonto ist nicht aktiv");
         }
 
-        // Check if user is locked out
-        if (await _userManager.IsLockedOutAsync(user))
+        if (await userManager.IsLockedOutAsync(user))
         {
             return Result.Failure<AuthenticationResult>("Konto ist gesperrt. Bitte versuchen Sie es später erneut.");
         }
 
-        // Check password
-        var isPasswordValid = await _userManager.CheckPasswordAsync(user, password);
+        var isPasswordValid = await userManager.CheckPasswordAsync(user, password);
         if (!isPasswordValid)
         {
-            // Increment failed access count
-            await _userManager.AccessFailedAsync(user);
+            await userManager.AccessFailedAsync(user);
             return Result.Failure<AuthenticationResult>("Ungültige Anmeldedaten");
         }
 
-        // Reset failed access count on successful login
-        await _userManager.ResetAccessFailedCountAsync(user);
+        await userManager.ResetAccessFailedCountAsync(user);
 
-        // Update last login
         user.LastLoginAt = DateTime.UtcNow;
-        await _userManager.UpdateAsync(user);
+        await userManager.UpdateAsync(user);
 
-        // Get user roles
-        var roles = await _userManager.GetRolesAsync(user);
-
-        // Generate tokens
-        var accessToken = _jwtTokenService.GenerateAccessToken(user.Id, user.Email!, roles);
-        var refreshTokenString = _jwtTokenService.GenerateRefreshToken();
-
-        // Save refresh token
-        var refreshToken = RefreshToken.Create(
-            user.Id,
-            refreshTokenString,
-            DateTime.UtcNow.AddDays(7),
-            ipAddress);
-
-        await _context.RefreshTokens.AddAsync(refreshToken, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var authResult = new AuthenticationResult(
-            user.Id,
-            user.Email!,
-            user.FirstName,
-            user.LastName,
-            accessToken,
-            refreshTokenString,
-            DateTime.UtcNow.AddMinutes(15),
-            DateTime.UtcNow.AddDays(7));
-
-        return Result.Success(authResult);
+        return await IssueTokensAsync(user, ipAddress, replacedToken: null, cancellationToken);
     }
 
     public async Task<Result<AuthenticationResult>> RefreshTokenAsync(
@@ -97,7 +59,7 @@ public class AuthenticationService : IAuthenticationService
         string ipAddress,
         CancellationToken cancellationToken = default)
     {
-        var token = await _context.RefreshTokens
+        var token = await context.RefreshTokens
             .FirstOrDefaultAsync(t => t.Token == refreshToken, cancellationToken);
 
         if (token == null || !token.IsActive)
@@ -105,43 +67,13 @@ public class AuthenticationService : IAuthenticationService
             return Result.Failure<AuthenticationResult>("Ungültiges Refresh-Token");
         }
 
-        var user = await _userManager.FindByIdAsync(token.UserId.ToString());
+        var user = await userManager.FindByIdAsync(token.UserId.ToString());
         if (user == null || user.Status != UserStatus.Active)
         {
             return Result.Failure<AuthenticationResult>("Benutzer nicht gefunden oder inaktiv");
         }
 
-        // Get user roles
-        var roles = await _userManager.GetRolesAsync(user);
-
-        // Generate new tokens
-        var accessToken = _jwtTokenService.GenerateAccessToken(user.Id, user.Email!, roles);
-        var newRefreshTokenString = _jwtTokenService.GenerateRefreshToken();
-
-        // Create new refresh token
-        var newRefreshToken = RefreshToken.Create(
-            user.Id,
-            newRefreshTokenString,
-            DateTime.UtcNow.AddDays(7),
-            ipAddress);
-
-        // Revoke old token
-        token.Revoke(ipAddress, "Replaced by new token", newRefreshTokenString);
-
-        await _context.RefreshTokens.AddAsync(newRefreshToken, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var authResult = new AuthenticationResult(
-            user.Id,
-            user.Email!,
-            user.FirstName,
-            user.LastName,
-            accessToken,
-            newRefreshTokenString,
-            DateTime.UtcNow.AddMinutes(15),
-            DateTime.UtcNow.AddDays(7));
-
-        return Result.Success(authResult);
+        return await IssueTokensAsync(user, ipAddress, token, cancellationToken);
     }
 
     public async Task<Result> RevokeTokenAsync(
@@ -149,7 +81,7 @@ public class AuthenticationService : IAuthenticationService
         string ipAddress,
         CancellationToken cancellationToken = default)
     {
-        var token = await _context.RefreshTokens
+        var token = await context.RefreshTokens
             .FirstOrDefaultAsync(t => t.Token == refreshToken, cancellationToken);
 
         if (token == null || !token.IsActive)
@@ -158,15 +90,14 @@ public class AuthenticationService : IAuthenticationService
         }
 
         token.Revoke(ipAddress, "Revoked by user");
-        await _context.SaveChangesAsync(cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }
 
     public async Task<Result> LogoutAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        // Revoke all active refresh tokens for the user
-        var tokens = await _context.RefreshTokens
+        var tokens = await context.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null)
             .ToListAsync(cancellationToken);
 
@@ -175,8 +106,43 @@ public class AuthenticationService : IAuthenticationService
             token.Revoke("System", "User logout");
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
+    }
+
+    private async Task<Result<AuthenticationResult>> IssueTokensAsync(
+        ApplicationUser user,
+        string ipAddress,
+        RefreshToken? replacedToken,
+        CancellationToken cancellationToken)
+    {
+        var roles = await userManager.GetRolesAsync(user);
+
+        var accessToken = jwtTokenService.GenerateAccessToken(user.Id, user.Email!, roles);
+        var refreshTokenString = jwtTokenService.GenerateRefreshToken();
+
+        var now = DateTime.UtcNow;
+        var accessTokenExpiresAt = now.AddMinutes(_jwt.AccessTokenExpirationMinutes);
+        var refreshTokenExpiresAt = now.AddDays(_jwt.RefreshTokenExpirationDays);
+
+        var refreshToken = RefreshToken.Create(user.Id, refreshTokenString, refreshTokenExpiresAt, ipAddress);
+
+        replacedToken?.Revoke(ipAddress, "Replaced by new token", refreshTokenString);
+
+        await context.RefreshTokens.AddAsync(refreshToken, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        var authResult = new AuthenticationResult(
+            user.Id,
+            user.Email!,
+            user.FirstName,
+            user.LastName,
+            accessToken,
+            refreshTokenString,
+            accessTokenExpiresAt,
+            refreshTokenExpiresAt);
+
+        return Result.Success(authResult);
     }
 }

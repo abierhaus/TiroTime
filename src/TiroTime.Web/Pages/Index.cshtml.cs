@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using TiroTime.Application.DTOs;
 using TiroTime.Application.Interfaces;

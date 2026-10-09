@@ -12,10 +12,10 @@ This directory contains the CI/CD workflows for TiroTime.
 
 **Steps:**
 1. Checkout code
-2. Setup .NET 9.0
+2. Setup .NET (Version aus `global.json`)
 3. Restore NuGet packages
 4. Build solution (Release configuration)
-5. Run all unit tests
+5. Run all unit tests (xunit.v3 on Microsoft.Testing.Platform, TRX report)
 6. Upload test results as artifacts
 
 **Status Badge:**

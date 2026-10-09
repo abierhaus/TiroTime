@@ -59,7 +59,7 @@ public class ProjectTests
     [InlineData("")]
     [InlineData(" ")]
     [InlineData(null)]
-    public void Create_WithInvalidName_ShouldThrowDomainException(string invalidName)
+    public void Create_WithInvalidName_ShouldThrowDomainException(string? invalidName)
     {
         // Arrange
         var clientId = Guid.NewGuid();
@@ -67,7 +67,7 @@ public class ProjectTests
 
         // Act & Assert
         var exception = Assert.Throws<DomainException>(() =>
-            Project.Create(invalidName, clientId, hourlyRate));
+            Project.Create(invalidName!, clientId, hourlyRate));
 
         Assert.Contains("Projektname darf nicht leer sein", exception.Message);
     }

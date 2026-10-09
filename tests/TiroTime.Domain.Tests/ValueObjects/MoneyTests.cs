@@ -41,11 +41,11 @@ public class MoneyTests
     [InlineData("")]
     [InlineData(" ")]
     [InlineData(null)]
-    public void Create_WithEmptyCurrency_ShouldThrowDomainException(string invalidCurrency)
+    public void Create_WithEmptyCurrency_ShouldThrowDomainException(string? invalidCurrency)
     {
         // Act & Assert
         var exception = Assert.Throws<DomainException>(() =>
-            Money.Create(100m, invalidCurrency));
+            Money.Create(100m, invalidCurrency!));
 
         Assert.Contains("Currency cannot be empty", exception.Message);
     }
@@ -53,11 +53,11 @@ public class MoneyTests
     [Theory]
     [InlineData("EU")]
     [InlineData("EURO")]
-    public void Create_WithInvalidCurrencyLength_ShouldThrowDomainException(string invalidCurrency)
+    public void Create_WithInvalidCurrencyLength_ShouldThrowDomainException(string? invalidCurrency)
     {
         // Act & Assert
         var exception = Assert.Throws<DomainException>(() =>
-            Money.Create(100m, invalidCurrency));
+            Money.Create(100m, invalidCurrency!));
 
         Assert.Contains("Currency must be a 3-letter ISO code", exception.Message);
     }

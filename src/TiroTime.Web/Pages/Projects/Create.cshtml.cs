@@ -74,36 +74,15 @@ public class CreateModel(
 
     public async Task<IActionResult> OnPostAsync()
     {
-        logger.LogInformation("=== OnPostAsync wurde aufgerufen ===");
-        logger.LogInformation("Input.HourlyRateCurrency: '{Currency}' (Länge: {Length})",
-            Input.HourlyRateCurrency ?? "NULL",
-            Input.HourlyRateCurrency?.Length ?? 0);
-
         // Fix for empty currency - set default if empty and clear validation errors
         if (string.IsNullOrWhiteSpace(Input.HourlyRateCurrency))
         {
-            logger.LogWarning("HourlyRateCurrency war leer, setze auf EUR");
             Input.HourlyRateCurrency = "EUR";
             ModelState.Remove("Input.HourlyRateCurrency");
         }
 
-        logger.LogInformation("ModelState.IsValid: {IsValid}", ModelState.IsValid);
-
         if (!ModelState.IsValid)
         {
-            logger.LogWarning("ModelState ist ungültig");
-            foreach (var key in ModelState.Keys)
-            {
-                var errors = ModelState[key]?.Errors;
-                if (errors != null && errors.Count > 0)
-                {
-                    foreach (var error in errors)
-                    {
-                        logger.LogWarning("Validierungsfehler für {Key}: {Error}", key, error.ErrorMessage);
-                    }
-                }
-            }
-
             // Set default again before returning to page
             if (string.IsNullOrWhiteSpace(Input.HourlyRateCurrency))
             {

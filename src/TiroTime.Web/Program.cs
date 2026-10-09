@@ -1,6 +1,9 @@
+using System.IO.Compression;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using TiroTime.Application.Interfaces;
+using TiroTime.Application.Services;
 using TiroTime.Domain.Identity;
 using TiroTime.Infrastructure;
 using TiroTime.Infrastructure.Persistence;
@@ -18,7 +21,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // Add Application services
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-builder.Services.AddScoped<ITimeEntryValidationService, TiroTime.Application.Services.TimeEntryValidationService>();
+builder.Services.AddSingleton<ITimeEntryValidationService, TimeEntryValidationService>();
 
 // Add Identity
 builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
@@ -56,6 +59,19 @@ builder.Services.ConfigureApplicationCookie(options =>
 // Add Razor Pages
 builder.Services.AddRazorPages();
 
+// Response compression for dynamic HTML/JSON (static assets are pre-compressed at build time)
+builder.Services.AddResponseCompression(options =>
+{
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
+
+// Health checks (used by the container HEALTHCHECK and orchestrators)
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ApplicationDbContext>("database");
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -70,20 +86,23 @@ else
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+app.UseResponseCompression();
 
 app.UseRouting();
 
 app.UseAuthentication();
 
-// Auto-login for development (only on localhost with single user)
+// Auto-login (only when exactly one user exists, see AutoLoginMiddleware)
 app.UseMiddleware<AutoLoginMiddleware>();
 
 app.UseAuthorization();
 
-app.MapRazorPages();
+// Fingerprinted, pre-compressed static assets (replaces UseStaticFiles)
+app.MapStaticAssets();
+app.MapRazorPages().WithStaticAssets();
 app.MapTimeEntriesApi();
 app.MapReportsApi();
+app.MapHealthChecks("/health").AllowAnonymous();
 
 // Apply database migrations and seed data
 using (var scope = app.Services.CreateScope())
@@ -93,12 +112,10 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        // Apply pending migrations
         var context = services.GetRequiredService<ApplicationDbContext>();
         await context.Database.MigrateAsync();
         logger.LogInformation("Datenbank-Migrationen wurden erfolgreich angewendet");
 
-        // Seed initial data
         await DatabaseSeeder.SeedAsync(services);
         logger.LogInformation("Datenbank wurde erfolgreich initialisiert");
     }
@@ -109,4 +126,4 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.Run();
+await app.RunAsync();

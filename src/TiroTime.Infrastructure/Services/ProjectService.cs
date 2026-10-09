@@ -8,37 +8,24 @@ using TiroTime.Infrastructure.Persistence;
 
 namespace TiroTime.Infrastructure.Services;
 
-public class ProjectService : IProjectService
+public class ProjectService(
+    ApplicationDbContext context,
+    IRepository<Project> projectRepository,
+    IRepository<Client> clientRepository,
+    IUnitOfWork unitOfWork) : IProjectService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IRepository<Project> _projectRepository;
-    private readonly IRepository<Client> _clientRepository;
-    private readonly IUnitOfWork _unitOfWork;
-
-    public ProjectService(
-        ApplicationDbContext context,
-        IRepository<Project> projectRepository,
-        IRepository<Client> clientRepository,
-        IUnitOfWork unitOfWork)
-    {
-        _context = context;
-        _projectRepository = projectRepository;
-        _clientRepository = clientRepository;
-        _unitOfWork = unitOfWork;
-    }
-
     public async Task<Result<IEnumerable<ProjectDto>>> GetAllProjectsAsync(
         bool includeInactive = false,
         CancellationToken cancellationToken = default)
     {
-        var projects = await _context.Projects
+        var projects = await context.Projects
+            .AsNoTracking()
             .Include(p => p.Client)
             .Where(p => includeInactive || p.IsActive)
             .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
 
-        var projectDtos = projects.Select(MapToDto);
-        return Result.Success(projectDtos);
+        return Result.Success<IEnumerable<ProjectDto>>(projects.Select(MapToDto).ToList());
     }
 
     public async Task<Result<IEnumerable<ProjectDto>>> GetProjectsByClientIdAsync(
@@ -46,26 +33,26 @@ public class ProjectService : IProjectService
         bool includeInactive = false,
         CancellationToken cancellationToken = default)
     {
-        var projects = await _context.Projects
+        var projects = await context.Projects
+            .AsNoTracking()
             .Include(p => p.Client)
             .Where(p => p.ClientId == clientId && (includeInactive || p.IsActive))
             .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
 
-        var projectDtos = projects.Select(MapToDto);
-        return Result.Success(projectDtos);
+        return Result.Success<IEnumerable<ProjectDto>>(projects.Select(MapToDto).ToList());
     }
 
     public async Task<Result<ProjectDto>> GetProjectByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var project = await _context.Projects
+        var project = await context.Projects
+            .AsNoTracking()
             .Include(p => p.Client)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
-        if (project == null)
-            return Result.Failure<ProjectDto>("Projekt nicht gefunden");
-
-        return Result.Success(MapToDto(project));
+        return project == null
+            ? Result.Failure<ProjectDto>("Projekt nicht gefunden")
+            : Result.Success(MapToDto(project));
     }
 
     public async Task<Result<ProjectDto>> CreateProjectAsync(
@@ -74,18 +61,12 @@ public class ProjectService : IProjectService
     {
         try
         {
-            // Verify client exists
-            var client = await _clientRepository.GetByIdAsync(dto.ClientId, cancellationToken);
+            var client = await clientRepository.GetByIdAsync(dto.ClientId, cancellationToken);
             if (client == null)
                 return Result.Failure<ProjectDto>("Kunde nicht gefunden");
 
-            var hourlyRate = Money.Create(dto.HourlyRate, dto.HourlyRateCurrency ?? "EUR");
-
-            Money? budget = null;
-            if (dto.Budget.HasValue)
-            {
-                budget = Money.Create(dto.Budget.Value, dto.BudgetCurrency ?? "EUR");
-            }
+            var hourlyRate = Money.Create(dto.HourlyRate, dto.HourlyRateCurrency);
+            var budget = dto.Budget.HasValue ? Money.Create(dto.Budget.Value, dto.BudgetCurrency ?? "EUR") : null;
 
             var project = Project.Create(
                 dto.Name,
@@ -97,15 +78,11 @@ public class ProjectService : IProjectService
                 dto.StartDate,
                 dto.EndDate);
 
-            await _projectRepository.AddAsync(project, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await projectRepository.AddAsync(project, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Reload with client
-            var createdProject = await _context.Projects
-                .Include(p => p.Client)
-                .FirstAsync(p => p.Id == project.Id, cancellationToken);
-
-            return Result.Success(MapToDto(createdProject));
+            // Kunde ist bereits geladen – kein erneutes Nachladen des Projekts nötig
+            return Result.Success(MapToDto(project, client.Name));
         }
         catch (Exception ex)
         {
@@ -119,20 +96,15 @@ public class ProjectService : IProjectService
     {
         try
         {
-            var project = await _context.Projects
+            var project = await context.Projects
                 .Include(p => p.Client)
                 .FirstOrDefaultAsync(p => p.Id == dto.Id, cancellationToken);
 
             if (project == null)
                 return Result.Failure<ProjectDto>("Projekt nicht gefunden");
 
-            var hourlyRate = Money.Create(dto.HourlyRate, dto.HourlyRateCurrency ?? "EUR");
-
-            Money? budget = null;
-            if (dto.Budget.HasValue)
-            {
-                budget = Money.Create(dto.Budget.Value, dto.BudgetCurrency ?? "EUR");
-            }
+            var hourlyRate = Money.Create(dto.HourlyRate, dto.HourlyRateCurrency);
+            var budget = dto.Budget.HasValue ? Money.Create(dto.Budget.Value, dto.BudgetCurrency ?? "EUR") : null;
 
             project.Update(
                 dto.Name,
@@ -143,8 +115,8 @@ public class ProjectService : IProjectService
                 dto.StartDate,
                 dto.EndDate);
 
-            _projectRepository.Update(project);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            projectRepository.Update(project);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result.Success(MapToDto(project));
         }
@@ -156,52 +128,57 @@ public class ProjectService : IProjectService
 
     public async Task<Result> DeleteProjectAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var project = await _projectRepository.GetByIdAsync(id, cancellationToken);
+        var project = await projectRepository.GetByIdAsync(id, cancellationToken);
         if (project == null)
             return Result.Failure("Projekt nicht gefunden");
 
-        // TODO: Check if project has time entries when that feature is implemented
+        var hasTimeEntries = await context.TimeEntries.AnyAsync(te => te.ProjectId == id, cancellationToken);
+        if (hasTimeEntries)
+            return Result.Failure("Projekt kann nicht gelöscht werden, da noch Zeiteinträge zugeordnet sind");
 
-        _projectRepository.Remove(project);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        projectRepository.Remove(project);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }
 
     public async Task<Result> ActivateProjectAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var project = await _projectRepository.GetByIdAsync(id, cancellationToken);
+        var project = await projectRepository.GetByIdAsync(id, cancellationToken);
         if (project == null)
             return Result.Failure("Projekt nicht gefunden");
 
         project.Activate();
-        _projectRepository.Update(project);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        projectRepository.Update(project);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }
 
     public async Task<Result> DeactivateProjectAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var project = await _projectRepository.GetByIdAsync(id, cancellationToken);
+        var project = await projectRepository.GetByIdAsync(id, cancellationToken);
         if (project == null)
             return Result.Failure("Projekt nicht gefunden");
 
         project.Deactivate();
-        _projectRepository.Update(project);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        projectRepository.Update(project);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }
 
-    private static ProjectDto MapToDto(Project project)
+    private static ProjectDto MapToDto(Project project) =>
+        MapToDto(project, project.Client?.Name ?? "Unknown");
+
+    private static ProjectDto MapToDto(Project project, string clientName)
     {
         return new ProjectDto(
             project.Id,
             project.Name,
             project.Description,
             project.ClientId,
-            project.Client?.Name ?? "Unknown",
+            clientName,
             project.HourlyRate.Amount,
             project.HourlyRate.Currency,
             project.Budget?.Amount,

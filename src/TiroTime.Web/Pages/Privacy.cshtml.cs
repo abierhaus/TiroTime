@@ -1,12 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace TiroTime.Web.Pages;
 
-public class PrivacyModel(ILogger<PrivacyModel> logger) : PageModel
+public class PrivacyModel : PageModel
 {
     public void OnGet()
     {
     }
 }
-
